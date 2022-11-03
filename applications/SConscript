@@ -1,0 +1,17 @@
+Import('RTT_ROOT')
+Import('rtconfig')
+from building import *
+
+cwd = GetCurrentDir()
+src = Glob('*.c') + Glob('../applications/lhc_dwin/Src/*.c') + Glob('../applications/lhc_modbus/Src/*.c')
+CPPPATH = [
+    cwd, 
+	cwd + '/../applications',
+	cwd + '/../applications/lhc_modbus/Inc',
+	cwd + '/../applications/lhc_dwin/Inc',
+str(Dir('#'))
+]
+
+group = DefineGroup('Applications', src, depend = [''], CPPPATH = CPPPATH)
+
+Return('group')
