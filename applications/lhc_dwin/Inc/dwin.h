@@ -39,9 +39,53 @@ extern "C"
 		err_event,			 /*事件错误*/
 		err_max_upper_limit, /*超出数据上限*/
 		err_min_lower_limit, /*低于数据下限*/
+		err_data_len,		 /*数据长度错误*/
+		err_data_type,		 /*数据类型错误*/
 		err_other,			 /*其他错误*/
 		dwin_ok,
 	} dwin_result;
+
+	// typedef enum
+	// {
+	// 	dw_uint8_t,
+	// 	dw_int8_t,
+	// 	dw_uint16_t,
+	// 	dw_int16_t,
+	// 	dw_uint32_t,
+	// 	dw_int32_t,
+	// 	dw_float,
+	// 	dw_long,
+	// 	dw_ulong,
+	// 	dw_type_max,
+	// } dwin_data_type;
+
+	typedef struct
+	{
+		uint16_t addr;
+		uint16_t index;
+		// void *val;
+		// dwin_data_type type;
+		// comm_val_t *pval;
+		uint8_t site; // 数据开始位置
+		float ratio;  // 小数位数
+	} dwin_val_glue_t;
+
+	typedef struct
+	{
+		union
+		{
+			unsigned char uc8;
+			char c8;
+			unsigned short us16;
+			short s16;
+			unsigned int ui32;
+			int i32;
+			float f32;
+			long l32;
+		} data;
+		uint16_t size;
+		dwin_result result;
+	} dwin_data_t; // adapter
 
 	typedef struct Dwin_HandleTypeDef *pDwinHandle;
 	typedef struct Dwin_HandleTypeDef DwinHandle;
@@ -55,8 +99,15 @@ extern "C"
 		void (*Dw_Read)(pDwinHandle, uint16_t, uint8_t);
 		void (*Dw_Page)(pDwinHandle, uint16_t);
 		void (*Dw_Poll)(pDwinHandle);
-		void (*Dw_Error)(pDwinHandle, dwin_result, uint8_t);
+		short int (*Dw_GetSignedData)(pDwinHandle, unsigned short int);
+		void (*Dw_Error)(pDwinHandle, dwin_result, uint8_t, void *);
 		void (*Dw_Delay)(uint32_t);
+		struct dwin
+		{
+			dwin_val_glue_t *ptable;
+			uint16_t num;
+		} user_val;
+
 		struct
 		{
 			void *pHandle;

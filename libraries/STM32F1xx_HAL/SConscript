@@ -19,9 +19,13 @@ STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_cec.c
 STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_gpio.c
 STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_adc.c
 STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_adc_ex.c
+STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dac.c
+STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_dac_ex.c
 STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_spi.c
 STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_flash.c
 STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_flash_ex.c
+STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_tim.c
+STM32F1xx_HAL_Driver/Src/stm32f1xx_hal_tim_ex.c
 """)
 
 if GetDepend(['RT_USING_PIN']):

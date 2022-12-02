@@ -19,6 +19,9 @@
 
 /* External variables --------------------------------------------------------*/
 extern DMA_HandleTypeDef hdma_adc1;
+extern DMA_HandleTypeDef hdma_adc3;
+extern ADC_HandleTypeDef hadc1;
+extern ADC_HandleTypeDef hadc2;
 extern DMA_HandleTypeDef hdma_usart1_rx;
 extern DMA_HandleTypeDef hdma_usart1_tx;
 extern DMA_HandleTypeDef hdma_usart2_rx;
@@ -44,6 +47,8 @@ void DMA1_Channel1_IRQHandler(void)
     /* USER CODE BEGIN DMA1_Channel1_IRQn 0 */
     /* enter interrupt */
     rt_interrupt_enter();
+    // extern rt_sem_t adc_semaphore;
+    // release_semaphore(adc_semaphore);
     /* USER CODE END DMA1_Channel1_IRQn 0 */
     HAL_DMA_IRQHandler(&hdma_adc1);
     /* USER CODE BEGIN DMA1_Channel1_IRQn 1 */
@@ -151,18 +156,18 @@ void DMA1_Channel7_IRQHandler(void)
 /**
  * @brief This function handles USART1 global interrupt.
  */
-// void USART1_IRQHandler(void)
-// {
-//     /* USER CODE BEGIN USART1_IRQn 0 */
-//     /* enter interrupt */
-//     rt_interrupt_enter();
-//     /* USER CODE END USART1_IRQn 0 */
-//     HAL_UART_IRQHandler(&huart1);
-//     /* USER CODE BEGIN USART1_IRQn 1 */
-//     /* leave interrupt */
-//     rt_interrupt_leave();
-//     /* USER CODE END USART1_IRQn 1 */
-// }
+void USART1_IRQHandler(void)
+{
+    /* USER CODE BEGIN USART1_IRQn 0 */
+    /* enter interrupt */
+    rt_interrupt_enter();
+    /* USER CODE END USART1_IRQn 0 */
+    HAL_UART_IRQHandler(&huart1);
+    /* USER CODE BEGIN USART1_IRQn 1 */
+    /* leave interrupt */
+    rt_interrupt_leave();
+    /* USER CODE END USART1_IRQn 1 */
+}
 
 /**
  * @brief This function handles USART2 global interrupt.
@@ -188,20 +193,53 @@ void USART2_IRQHandler(void)
 /**
  * @brief This function handles USART3 global interrupt.
  */
-void USART3_IRQHandler(void)
+// void USART3_IRQHandler(void)
+// {
+//     /* USER CODE BEGIN USART3_IRQn 0 */
+//     /* enter interrupt */
+//     rt_interrupt_enter();
+//     if (Modbus_Object)
+//     {
+//         //        Modbus_Object->Mod_Recive((pModbusHandle)&Modbus_Object->Uart);
+//         uartx_irq_recive(Modbus_Object, Mod);
+//     }
+//     /* USER CODE END USART3_IRQn 0 */
+//     HAL_UART_IRQHandler(&huart3);
+//     /* USER CODE BEGIN USART3_IRQn 1 */
+//     /* leave interrupt */
+//     rt_interrupt_leave();
+//     /* USER CODE END USART3_IRQn 1 */
+// }
+
+/**
+ * @brief This function handles ADC1 and ADC2 global interrupts.
+ */
+void ADC1_2_IRQHandler(void)
 {
-    /* USER CODE BEGIN USART3_IRQn 0 */
+    /* USER CODE BEGIN ADC1_2_IRQn 0 */
     /* enter interrupt */
     rt_interrupt_enter();
-    if (Modbus_Object)
-    {
-        //        Modbus_Object->Mod_Recive((pModbusHandle)&Modbus_Object->Uart);
-        uartx_irq_recive(Modbus_Object, Mod);
-    }
-    /* USER CODE END USART3_IRQn 0 */
-    HAL_UART_IRQHandler(&huart3);
-    /* USER CODE BEGIN USART3_IRQn 1 */
+    /* USER CODE END ADC1_2_IRQn 0 */
+    HAL_ADC_IRQHandler(&hadc1);
+    HAL_ADC_IRQHandler(&hadc2);
+    /* USER CODE BEGIN ADC1_2_IRQn 1 */
     /* leave interrupt */
     rt_interrupt_leave();
-    /* USER CODE END USART3_IRQn 1 */
+    /* USER CODE END ADC1_2_IRQn 1 */
+}
+
+/**
+ * @brief This function handles DMA2 channel4 and channel5 global interrupts.
+ */
+void DMA2_Channel4_5_IRQHandler(void)
+{
+    /* USER CODE BEGIN DMA2_Channel4_5_IRQn 0 */
+    /* enter interrupt */
+    rt_interrupt_enter();
+    /* USER CODE END DMA2_Channel4_5_IRQn 0 */
+    HAL_DMA_IRQHandler(&hdma_adc3);
+    /* USER CODE BEGIN DMA2_Channel4_5_IRQn 1 */
+    /* leave interrupt */
+    rt_interrupt_leave();
+    /* USER CODE END DMA2_Channel4_5_IRQn 1 */
 }

@@ -40,14 +40,15 @@ extern "C"
         ad9833_wave_type_err, /*波形类型错误*/
         ad9833_phase_err,     /*相位错误*/
         ad9833_phase_sfr_err, /*相位寄存器错误*/
+        ad9833_range_err,     /*幅度错误*/
     } ad9833_coding_table;
 
     typedef enum
     {
         ad9833_sin = 0,
-        ad9833_tri,
         ad9833_squ,
-        ad9833_null_signal,
+        ad9833_tri,
+        ad9833_null_signal = 0xFFFFF,
     } ad9833_wave;
 
     typedef enum
@@ -60,26 +61,27 @@ extern "C"
     {
         void *pspi;
         Gpiox_info cs, scyn;
-    } ad9833_handletypedef;
+        void (*set_seampling_freq)(float);
+    } ad9833_t;
 
     typedef struct
     {
         float frequency;
+        uint16_t fre_sfr;
         uint16_t phase;
-        uint8_t fre_sfr;
-        uint8_t phase_sfr;
-        uint8_t range;
+        uint16_t phase_sfr;
+        uint16_t range;
         ad9833_wave wave_mode;
-    } ad9833_wave_out_handletypedef;
+    } ad9833_out_t;
 
-    extern ad9833_handletypedef ad9833_object;
-    extern void ad9833_set_wave(ad9833_handletypedef *pa,
+    extern ad9833_t ad9833_object;
+    extern void ad9833_set_wave(ad9833_t *pa,
                                 float freq,
                                 unsigned char freq_sfr,
                                 ad9833_wave wave,
                                 unsigned short phase,
                                 ad9833_phase_regs phase_sfr);
-    extern void ad9833_amplitude(ad9833_handletypedef *pa,
+    extern void ad9833_amplitude(ad9833_t *pa,
                                  unsigned short data);
     extern void ad9833_out_target_wave(void);
 

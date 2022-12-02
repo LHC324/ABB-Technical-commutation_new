@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2006-2021, RT-Thread Development Team
+ * Copyright (c) 2006-2022, LHC Development Team
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -14,20 +14,58 @@ extern "C"
 {
 #endif
 /*****************************************************功能配置区*******************************************/
+/*Configuration Wizard：https://blog.csdn.net/qq_15647227/article/details/89297207*/
+// <<< Use Configuration Wizard in Context Menu >>>
+
+// <o>Selsect lhc modbus thread Running Environment
+//  <i>Default: 2
+//  <0=> Bare pager
+//  <1=> Freertos
+//  <2=> rt_thread
 /*small_modbus使用RTOS[0:不使用RTOS;1:Freertos;2:rt_thread]*/
 #define SMODBUS_USING_RTOS 2
+
+// <o>Set lhc modbus Dynamic Memory allocation mode
+//  <i>Default: 1
+//  <0=> Unused
+//  <1=> Used
 /*small_modbus动态内存分配[0:不使用；1：使用]*/
 #define SMODBUS_USING_MALLOC 1
+
+// <o>Set lhc modbus Dma peripheral
+//  <i>Default: 1
+//  <0=> Unused
+//  <1=> Used
 /*small_modbusDMA选项*/
 #define SMODBUS_USING_DMA 1
+
+// <o>Set lhc modbus crc algorithm
+//  <i>Default: 1
+//  <0=> Unused
+//  <1=> Used
 /*small_modbusCRC校验*/
 #define SMODBUS_USING_CRC 1
-/*small_modbus调试选项*/
+
+// <o>Selsect lhc modbus Debug Options
+//  <i>Default: 2
+//  <0=> Unused debug
+//  <1=> leeter shell
+//  <2=> finish shell
+/*small_modbus调试选项[0:不使用调试终端；1：leeter shell; 2:finish shell]*/
 #define SMODBUS_USING_DEBUG 2
+
 /*small_modbus调试输出终端选择:[0:不使用调试终端；1：leeter shell; 2:finish shell]*/
-#define SMODBUS_USING_SHELL 2
+//#define SMODBUS_USING_SHELL 2
+
+// <o>Set the buffer size of lhc modbus receiving thread
+//  <i>Default: 128 (Unit: byte)
+//  <0-1024>
 /*small_modbus数据缓冲区尺寸*/
 #define SMODBUS_RX_BUF_SIZE 128
+
+// <o>Set the buffer size of lhc modbus sending thread
+//  <i>Default: 128 (Unit: byte)
+//  <0-1024>
 #define SMODBUS_TX_BUF_SIZE 128
 
 #if (SMODBUS_USING_MALLOC)
@@ -35,9 +73,20 @@ extern "C"
 #define smd_free rt_free
 #endif
 
+// <o>Set lhc modbus master address
+//  <i>Default: 1 
+//  <0-255>
 /*协议栈参数配置*/
 #define SMALL_MODBUS_MASTER_ADDR 0x01
+
+// <o>Set lhc modbus slave address
+//  <i>Default: 2 
+//  <0-255>
+
 #define SMALL_MODBUS_SLAVE_ADDR 0x02
+// <o>Set the number of registers in the lhc modbus register pool
+//  <i>Default: 128 
+//  <0-1024>
 /*寄存器池尺寸*/
 #define SMODBUS_REG_POOL_SIZE 128U
 
@@ -45,16 +94,38 @@ extern "C"
 #define INPUT_COIL_OFFSET (10001)
 #define INPUT_REGISTER_OFFSET (30001)
 #define HOLD_REGISTER_OFFSET (40001)
+
+// <c1>Enable lhc modbus master mode
+//  <i>Enable HAL Driver Component
 /*启用主机模式*/
 #define SMODBUS_USING_MASTER
+// </c>
+
+// <c1>Enable coil function in register pool
+//  <i>Enable HAL Driver Component
 /*启用线圈*/
 #define SMODBUS_USING_COIL
+// </c>
+
+// <c1>Enable input coil function in register pool
+//  <i>Enable HAL Driver Component
 /*启用输入线圈*/
 #define SMODBUS_USING_INPUT_COIL
+// </c>
+
+// <c1>Enable input register function in register pool
+//  <i>Enable HAL Driver Component
 /*启用输入寄存器*/
 #define SMODBUS_USING_INPUT_REGISTER
+// </c>
+
+// <c1>Enable hold register function in register pool
+//  <i>Enable HAL Driver Component
 /*启用保持寄存器*/
 #define SMODBUS_USING_HOLD_REGISTER
+// </c>
+
+// <<< end of configuration section >>>
 
 /*包含对应操作系统接口:tool.h中包含对应api*/
 #if (SMODBUS_USING_RTOS == 1)

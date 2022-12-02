@@ -40,8 +40,8 @@ static enum rym_code _rym_recv_begin(
     char insert_0 = '\0';
     char *ret;
     rt_err_t err;
-    ret = strchr(cctx->fpath,insert_0);
-    if(ret)
+    ret = strchr(cctx->fpath, insert_0);
+    if (ret)
     {
         *ret = '/';
     }
@@ -125,7 +125,7 @@ static enum rym_code _rym_send_begin(
         rt_kprintf("error open file.\n");
         return RYM_ERR_FILE;
     }
-    rt_sprintf((char *)buf, "%s%c%d", (char *) & (cctx->fpath[1]), insert_0, file_buf.st_size);
+    rt_sprintf((char *)buf, "%s%c%d", (char *)&(cctx->fpath[1]), insert_0, file_buf.st_size);
 
     return RYM_CODE_SOH;
 }
@@ -166,7 +166,7 @@ static enum rym_code _rym_send_end(
     return RYM_CODE_SOH;
 }
 
-static rt_err_t rym_download_file(rt_device_t idev,const char *file_path)
+static rt_err_t rym_download_file(rt_device_t idev, const char *file_path)
 {
     rt_err_t res;
     struct custom_ctx *ctx = rt_calloc(1, sizeof(*ctx));
@@ -231,11 +231,12 @@ static rt_err_t ry(uint8_t argc, char **argv)
         return -RT_ERROR;
     }
     file_path = argv[1];
-    res = rym_download_file(dev,file_path);
+    res = rym_download_file(dev, file_path);
 
     return res;
 }
-MSH_CMD_EXPORT(ry, YMODEM Receive e.g: ry file_path [uart0] default by console.);
+MSH_CMD_EXPORT(ry, YMODEM Receive e.g
+               : ry file_path[uart0] default by console.);
 
 static rt_err_t sy(uint8_t argc, char **argv)
 {
@@ -264,6 +265,7 @@ static rt_err_t sy(uint8_t argc, char **argv)
 
     return res;
 }
-MSH_CMD_EXPORT(sy, YMODEM Send e.g: sy file_path [uart0] default by console.);
+MSH_CMD_EXPORT(sy, YMODEM Send e.g
+               : sy file_path[uart0] default by console.);
 
 #endif /* RT_USING_FINSH */

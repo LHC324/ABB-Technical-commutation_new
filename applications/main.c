@@ -12,11 +12,14 @@
 #include <rtdevice.h>
 #include <board.h>
 #include "main.h"
+#include <fal.h>
+#include <dfs_fs.h>
 #include "dwin_port.h"
 #include "small_modbus_port.h"
 #include "io_signal.h"
 #include "ad9833.h"
 #include "test.h"
+#include "minIni.h"
 #ifdef DBG_TAG
 #undef DBG_TAG
 #define DBG_TAG "main"
@@ -58,8 +61,9 @@ typedef struct
 /*线程入口函数声明区*/
 static void modbus_slave_thread_entry(void *parameter);
 static void dwin_recive_thread_entry(void *parameter);
+static void adc_start_conv_thread_entry(void *parameter);
 static void sampling_thread_entry(void *parameter);
-static void contrl_thread_entry(void *parameter);
+static void control_thread_entry(void *parameter);
 static void test_poll_thread_entry(void *parameter);
 static void report_thread_entry(void *parameter);
 
@@ -76,19 +80,21 @@ static void report_thread_entry(void *parameter);
         .sema_state = __sema_state,                                         \
         .semaphore = __sema,                                                \
     }
-
+/*finsh控制台卡死问题：https://www.cnblogs.com/jzcn/p/16450021.html*/
 static rt_thread_pools_t thread_pools[] = {
-    __init_rt_thread_pools("md_slave_thread", RT_NULL, RT_NULL, 1024U, 0x0F,
-                           10, modbus_slave_thread_entry, using_semaphore, RT_NULL),
+    // __init_rt_thread_pools("md_slave_thread", RT_NULL, RT_NULL, 1024U, 0x0F,
+    //                        10, modbus_slave_thread_entry, using_semaphore, RT_NULL),
     __init_rt_thread_pools("dwin_thread", RT_NULL, RT_NULL, 1024U, 0x0F,
                            10, dwin_recive_thread_entry, using_semaphore, RT_NULL),
-    __init_rt_thread_pools("sampling_thread", RT_NULL, RT_NULL, 1024U, 0x05,
-                           50, sampling_thread_entry, unusing_semaphore, RT_NULL),
-    __init_rt_thread_pools("contrl_thread", RT_NULL, RT_NULL, 512U, 0x0F,
-                           10, contrl_thread_entry, unusing_semaphore, RT_NULL),
-    __init_rt_thread_pools("measure_thread", RT_NULL, RT_NULL, 2048U, 0x06,
+    __init_rt_thread_pools("adc_trig_thread", RT_NULL, &test_object, 512U, 0x03,
+                           10, adc_start_conv_thread_entry, using_semaphore, RT_NULL),
+    __init_rt_thread_pools("sampling_thread", RT_NULL, &test_object, 2048U, 0x05,
+                           100, sampling_thread_entry, using_semaphore, RT_NULL),
+    __init_rt_thread_pools("control_thread", RT_NULL, RT_NULL, 512U, 0x0F,
+                           10, control_thread_entry, unusing_semaphore, RT_NULL),
+    __init_rt_thread_pools("test_thread", RT_NULL, RT_NULL, 2048U, 0x05,
                            10, test_poll_thread_entry, unusing_semaphore, RT_NULL),
-    __init_rt_thread_pools("measure_exe", RT_NULL, RT_NULL, 2048U, 0x10,
+    __init_rt_thread_pools("report_thread", RT_NULL, RT_NULL, 2048U, 0x10,
                            10, report_thread_entry, unusing_semaphore, RT_NULL),
 
 };
@@ -119,13 +125,22 @@ static void rt_thread_pools_init(rt_thread_pool_map_t *p_rt_thread_map)
             if (p->thread)
             {
                 /*线程自生参数信息传递给线程入口函数*/
-                p->parameter = p;
-                p->thread_handle = rt_thread_create(p->name, p->thread, p->parameter,
+                // p->parameter = p;
+                p->thread_handle = rt_thread_create(p->name, p->thread, p,
                                                     p->stack_size, p->priority, p->tick);
             }
             /* 创建一个动态信号量，初始值是 0 */
             if (p->sema_state == using_semaphore)
-                p->semaphore = rt_sem_create("sempx", 0, RT_IPC_FLAG_PRIO);
+            {
+                char *psemaphore_name = rt_malloc(RT_NAME_MAX);
+                if (psemaphore_name)
+                {
+                    rt_strncpy(psemaphore_name, p->name, RT_NAME_MAX); // 最大拷贝RT_NAME_MAX
+                    p->semaphore = rt_sem_create(strncat(psemaphore_name, "_sem", 5), 0, RT_IPC_FLAG_PRIO);
+                }
+                rt_free(psemaphore_name);
+            }
+
             if (p->thread_handle)
                 rt_thread_startup(p->thread_handle);
         }
@@ -159,11 +174,390 @@ static void rt_thread_hal_uartx_dma_info_init(rt_thread_pools_t *p_pool, pUartHa
         puart->semaphore = p_pool->semaphore;
 }
 
+/**
+ * @Function    ota_app_vtor_reconfig
+ * @note rt-thread ota 升级指导https://getiot.tech/rtt/rt-thread-ota.html
+ * @note 官网文档 https://www.rt-thread.org/document/site/#/rt-thread-version/rt-thread-standard/application-note/system/rtboot/an0028-rtboot
+ * @note qboot使用 https://blog.csdn.net/victor_zy/article/details/122844572
+ * @Description Set Vector Table base location to the start addr of app(RT_APP_PART_ADDR).
+ */
+static int ota_app_vtor_reconfig(void)
+{
+#define NVIC_VTOR_MASK 0x3FFFFF80
+    /* Set the Vector Table base location by user application firmware definition */
+    SCB->VTOR = RT_APP_PART_ADDR & NVIC_VTOR_MASK;
+
+    return 0;
+}
+INIT_BOARD_EXPORT(ota_app_vtor_reconfig);
+
 /* defined the LED0 pin: PB1 */
 // #define LED0_PIN GET_PIN(B, 1)
 
+static void timer1_callback(void *parameter);
+static void test_timer_callback(void *parameter);
+rt_sem_t adc_semaphore = RT_NULL;      // adc转换完成同步信号量
+rt_sem_t trig_semaphore = RT_NULL;     // 触发adc开始转换同步信号量
+rt_sem_t continue_semaphore = RT_NULL; // 继续同步信号量
+
+/**
+ * @brief   查看系统信息
+ * @details
+ * @param	None
+ * @retval  None
+ */
+static void see_sys_info(void)
+{
+#define CURRENT_HARDWARE_VERSION "1.0.0"
+#define CURRENT_SOFT_VERSION "1.0.5"
+    rt_kprintf("@note:Current Hardware version: %s , software version: %s.\n",
+               CURRENT_HARDWARE_VERSION, CURRENT_SOFT_VERSION);
+#undef CURRENT_HARDWARE_VERSION
+#undef CURRENT_SOFT_VERSION
+}
+MSH_CMD_EXPORT(see_sys_info, View system information.);
+
+/**
+ * @brief	挂载文件系统到rt_thread
+ * @details
+ * @note    littlefs文件系统使用教程：https://club.rt-thread.org/ask/article/a5c8b007eed2584e.html
+ * @param	None
+ * @retval  none
+ */
+void mount_file_system(void)
+{
+/* 定义要使用的分区名字 */
+#define FS_PARTITION_NAME "filesystem"
+    struct rt_device *mtd_dev = RT_NULL;
+    /* 生成 mtd 设备 */
+    mtd_dev = fal_mtd_nor_device_create(FS_PARTITION_NAME);
+    if (mtd_dev == RT_NULL)
+    {
+        LOG_E("Can't create a mtd device on '%s' partition.", FS_PARTITION_NAME);
+    }
+    else
+    {
+        /* 挂载 littlefs */
+        if (dfs_mount(FS_PARTITION_NAME, "/", "lfs", 0, 0) == 0)
+        {
+            LOG_I("Filesystem initialized!");
+        }
+        else
+        {
+            /* 格式化文件系统 */
+            dfs_mkfs("lfs", FS_PARTITION_NAME);
+            /* 挂载 littlefs */
+            if (dfs_mount("filesystem", "/", "lfs", 0, 0) == 0)
+            {
+                LOG_I("Filesystem initialized!");
+            }
+            else
+            {
+                LOG_E("Failed to initialize filesystem!");
+            }
+        }
+    }
+#undef FS_PARTITION_NAME
+}
+
+// extern comm_val_t struct_val_table[13];
+extern comm_val_t *get_comm_val(uint16_t index);
+
+static struct ini_data_t ini_val_group[] = {
+
+    // __INIT_INI_UINT32_VAL("run", "flag", 0, &test_object.flag, test_uint32),
+    // __INIT_INI_FLOAT_VAL("run", "voltage offset", 0.5, &test_object.comm_param.voltage_offset, test_float),
+    // __INIT_INI_FLOAT_VAL("run", "current offset", 5, &test_object.comm_param.current_offset, test_float),
+    // __INIT_INI_UINT16_VAL("run", "start", 1, &test_object.cur_group.start, test_uint16),
+    // __INIT_INI_UINT16_VAL("run", "end", 7, &test_object.cur_group.end, test_uint16),
+    // __INIT_INI_UINT16_VAL("ad9833", "frequency register", 0, &test_object.ac.wave_param.fre_sfr, test_uint16),
+    // __INIT_INI_UINT16_VAL("ad9833", "phase", 0, &test_object.ac.wave_param.phase, test_uint16),
+    // __INIT_INI_UINT16_VAL("ad9833", "phase register", 0, &test_object.ac.wave_param.phase_sfr, test_uint16),
+    // __INIT_INI_UINT16_VAL("ad9833", "range", 50, &test_object.ac.wave_param.range, test_uint16),
+    // __INIT_INI_UINT16_VAL("ad9833", "wave", 0, &test_object.ac.wave_param.wave_mode, test_uint16),
+
+    __INIT_INI_VAL("run", "flag", u32, 0, 0x00),
+    __INIT_INI_VAL("run", "freq_mode", u16, 0, 0x01),
+    __INIT_INI_VAL("ad9833", "frequency register", u16, 0, 0x03),
+    __INIT_INI_VAL("ad9833", "phase", u16, 0, 0x04),
+    __INIT_INI_VAL("ad9833", "phase register", u16, 0, 0x05),
+    __INIT_INI_VAL("ad9833", "range", u16, 50, 0x06),
+    __INIT_INI_VAL("ad9833", "wave", u16, 0, 0x07),
+    __INIT_INI_VAL("run", "start", u16, 1, 0x08),
+    __INIT_INI_VAL("run", "end", u16, 7, 0x09),
+    __INIT_INI_VAL("run", "voltage offset", f32, 0.5, 0x0A),
+    __INIT_INI_VAL("run", "current offset", f32, 5, 0x0B),
+    __INIT_INI_VAL("run", "file_size", u32, 0, 0x0C),
+};
+#define INI_VAL_NUM() (sizeof(ini_val_group) / sizeof(ini_val_group[0]))
+/**
+ * @brief  获取目标变量在'ini_val_group’位置
+ * @param  index 索引值
+ * @retval None
+ */
+struct ini_data_t *get_target_val_handle(uint16_t index)
+{
+    for (struct ini_data_t *pi = ini_val_group;
+         (index < INI_VAL_NUM()) && (pi < ini_val_group + INI_VAL_NUM()); ++pi)
+    {
+        if (pi->index == index) // 通过比较index得到目标变量
+        {
+            return pi;
+        }
+    }
+
+    return NULL;
+}
+
+/**
+ * @brief	从.ini文件中读取目标参数
+ * @details
+ * @param	pi ini文件中数据句柄
+ * @param   pv 变量结构
+ * @param   str_size 目标数据是字符串时，指定其长度
+ * @retval  none
+ */
+static void read_data_from_ini_file(struct ini_data_t *pi,
+                                    comm_val_t *pv,
+                                    uint16_t str_size)
+{
+#define INI_FILE_DIR "/config/config.ini"
+
+    if (NULL == pi || NULL == pv)
+        return;
+
+    const char *p_name = text_name[pv->type];
+    void *ptr = NULL;
+    uint8_t c_size = BY_DATA_TYPE_GET_SIZE(pv->type);
+    void *pdata = pv->val;
+
+    switch (pv->type)
+    {
+    case co_string:
+        if (str_size)
+            ini_gets(pi->section_name, pi->key_name, pi->def_val.string, (char *)pdata, str_size, INI_FILE_DIR);
+        LOG_I("[R <- S] section: %s,val: %s,[%s]: %s.", pi->section_name, pi->key_name, p_name, (char *)pdata);
+        break;
+    case co_bool:
+    {
+        bool data = ini_getbool(pi->section_name, pi->key_name, pi->def_val.b1, INI_FILE_DIR);
+        ptr = &data;
+        LOG_I("[R <- S] section: %s,val: %s,[%s]: %d.", pi->section_name, pi->key_name, p_name, data);
+    }
+    break;
+    case co_uint8: // case中定义变量：https://blog.csdn.net/scutth/article/details/6894975
+    case co_int16:
+    case co_uint16:
+    case co_int32:
+    case co_uint32:
+    case co_long:
+    case co_ulong:
+    {
+        long data = ini_getl(pi->section_name, pi->key_name, pi->def_val.l32, INI_FILE_DIR);
+        ptr = &data;
+        LOG_I("[R <- S] section: %s,val: %s,[%s]: %ld.", pi->section_name, pi->key_name, p_name, data);
+    }
+    break;
+    case co_float:
+    {
+        float data = ini_getf(pi->section_name, pi->key_name, (float)pi->def_val.f32, INI_FILE_DIR);
+        ptr = &data;
+        LOG_I("[R <- S] section: %s,val: %s,[%s]: %f.", pi->section_name, pi->key_name, p_name, data);
+    }
+    break;
+
+        // case co_uint8:
+        //     *(uint8_t *)pdata = (uint8_t)ini_getl(pi->section_name, pi->key_name, (long)pi->def_val.u8, INI_FILE_DIR);
+        //     LOG_I("<- section: %s,val: %s,[uint8_t]: %d.", pi->section_name, pi->key_name, *(uint8_t *)pdata);
+        //     break;
+        // case co_int16:
+        //     *(int16_t *)pdata = (int16_t)ini_getl(pi->section_name, pi->key_name, (long)pi->def_val.i16, INI_FILE_DIR);
+        //     LOG_I("<- section: %s,val: %s,[int16_t]: %d.", pi->section_name, pi->key_name, *(int16_t *)pdata);
+        //     break;
+        // case co_uint16:
+        //     *(uint16_t *)pdata = (uint16_t)ini_getl(pi->section_name, pi->key_name, (long)pi->def_val.u16, INI_FILE_DIR);
+        //     LOG_I("<- section: %s,val: %s,[uint16_t]: %d.", pi->section_name, pi->key_name, *(uint16_t *)pdata);
+        //     break;
+        // case co_float:
+        //     *(float *)pdata = ini_getf(pi->section_name, pi->key_name, (float)pi->def_val.f32, INI_FILE_DIR);
+        //     LOG_I("<- section: %s,val: %s,[float]: %f.", pi->section_name, pi->key_name, *(float *)pdata);
+        //     break;
+        // case co_uint32:
+        //     *(uint32_t *)pdata = (uint32_t)ini_getl(pi->section_name, pi->key_name, (long)pi->def_val.u32, INI_FILE_DIR);
+        //     LOG_I("<- section: %s,val: %s,[uint32_t]: %d.", pi->section_name, pi->key_name, *(uint32_t *)pdata);
+        //     break;
+        // case co_long:
+        //     *(long *)pdata = ini_getl(pi->section_name, pi->key_name, pi->def_val.l32, INI_FILE_DIR);
+        //     LOG_I("<- section: %s,val: %s,[long]: %ld.", pi->section_name, pi->key_name, *(long *)pdata);
+        // break;
+    default:
+        break;
+    }
+    if (ptr && c_size < co_type_max)
+        memcpy(pdata, ptr, c_size);
+}
+
+/**
+ * @brief	写入数据到.ini文件
+ * @details
+ * @param	pi ini文件中数据句柄
+ * @param   pv 变量结构
+ * @retval  none
+ */
+static void write_data_to_ini_file(struct ini_data_t *pi,
+                                   comm_val_t *pv)
+{
+    int code;
+
+    if (NULL == pi || NULL == pv)
+        return;
+
+    void *pdata = pv->val;
+
+    const char *p_name = text_name[pv->type];
+
+    switch (pv->type)
+    {
+    case co_string:
+        code = ini_puts(pi->section_name, pi->key_name, (const char *)pdata, INI_FILE_DIR);
+        LOG_I("[R -> S] section: %s,val: %s,[%s]: %s.", pi->section_name, pi->key_name, p_name, (char *)pdata);
+        break;
+    case co_bool:
+    case co_uint8:
+    case co_int16:
+    case co_uint16:
+    case co_int32:
+    case co_uint32:
+    case co_long:
+    case co_ulong:
+        code = ini_putl(pi->section_name, pi->key_name, *(long *)pdata, INI_FILE_DIR);
+        LOG_I("[R -> S] section: %s,val: %s,[%s]: %ld.", pi->section_name, pi->key_name, p_name, *(long *)pdata);
+        break;
+    case co_float:
+        code = ini_putf(pi->section_name, pi->key_name, *(float *)pdata, INI_FILE_DIR);
+        LOG_I("[R -> S] section: %s,val: %s,[%s]: %d.", pi->section_name, pi->key_name, p_name, *(float *)pdata);
+        break;
+    default:
+        break;
+    }
+
+    if (code)
+    {
+        LOG_I("@note: Data written successfully.");
+    }
+    else
+    {
+        LOG_I("@note: Data write failed,code: %d.", code);
+    }
+}
+
+/**
+ * @brief	获取系统参数
+ * @details
+ * @param	None
+ * @retval  none
+ */
+static void get_system_param(void)
+{
+    for (struct ini_data_t *pi = ini_val_group;
+         pi && pi < ini_val_group + INI_VAL_NUM(); ++pi)
+    {
+        comm_val_t *pv = get_comm_val(pi->index);
+        if (pv)
+            read_data_from_ini_file(pi, pv, 0);
+    }
+}
+
+/**
+ * @brief	检查系统参数的变化
+ * @details
+ * @param	pi ini文件中数据句柄
+ * @param   pv 变量结构
+ * @retval  none
+ */
+bool check_system_param(struct ini_data_t *pi,
+                        comm_val_t *pv)
+{
+    bool result = false;
+
+    if (NULL == pi || NULL == pv)
+        return result;
+
+    union_data_t cur_data;
+    comm_val_t c_val = {
+        .val = &cur_data.string,
+        .type = pv->type,
+    };
+
+    /*先读取文件中目标参数：若本次修改与上次不同，更新.ini*/
+    read_data_from_ini_file(pi, &c_val, 0);
+    switch (pv->type)
+    {
+    case co_string:
+    {
+        if (strcmp(cur_data.string, (const char *)pv->val))
+            result = true;
+    }
+    break;
+    case co_bool:
+    case co_uint8:
+    case co_int16:
+    case co_uint16:
+    case co_int32:
+    case co_uint32:
+    case co_long:
+    case co_ulong:
+    {
+        long data = *(long *)pv->val;
+        if (cur_data.l32 != data)
+            result = true;
+    }
+    break;
+    case co_float:
+    {
+        float data = *(float *)pv->val;
+        if (cur_data.l32 != data)
+            result = true;
+    }
+    break;
+    default:
+        break;
+    }
+
+    return result;
+}
+
+/**
+ * @brief	存储系统参数
+ * @details
+ * @param   pv 变量结构
+ * @param	index 索引值
+ * @retval  none
+ */
+void set_system_param(comm_val_t *pv, uint16_t index)
+{
+    struct ini_data_t *pi = get_target_val_handle(index);
+    // comm_val_t *pv = get_comm_val(index);
+    if (NULL == pi || NULL == pv)
+        return;
+
+    if (check_system_param(pi, pv))
+        write_data_to_ini_file(pi, pv);
+    else
+    {
+        LOG_I("@note: The current parameters have not changed.");
+    }
+}
+
+/**
+ * @brief	rt_thread main线程
+ * @details
+ * @param	None
+ * @retval  none
+ */
 int main(void)
 {
+    rt_timer_t timer = RT_NULL;
     // int count = 1;
     // /* set LED0 pin mode to output */
     // rt_pin_mode(LED0_PIN, PIN_MODE_OUTPUT);
@@ -175,10 +569,34 @@ int main(void)
     //     rt_pin_write(LED0_PIN, PIN_LOW);
     //     rt_thread_mdelay(500);
     // }
-    extern ADC_HandleTypeDef hadc1;
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t *)Adc_buffer, ADC_DMA_SIZE);
+
+    see_sys_info();
+    /*fal层使用：https://github.com/RT-Thread-packages/fal/blob/master/README_ZH.md#falflash-%E6%8A%BD%E8%B1%A1%E5%B1%82*/
+    fal_init();
+    mount_file_system();
+    /*初始化系统参数*/
+    get_system_param();
     /*初始化线程池*/
     rt_thread_pools_init(&rt_thread_pool_map);
+    /* 创建定时器1  周期定时器 */
+    timer = rt_timer_create("timer1",
+                            timer1_callback,
+                            RT_NULL,
+                            2000,
+                            RT_TIMER_FLAG_PERIODIC);
+    /* 启动timer1定时器 */
+    if (timer != RT_NULL)
+        rt_timer_start(timer);
+    /* 创建测试对象定时器  周期定时器 */
+    timer = rt_timer_create("test_timer",
+                            test_timer_callback,
+                            RT_NULL,
+                            1000,
+                            RT_TIMER_FLAG_PERIODIC);
+    /* 启动timer1定时器 */
+    if (timer != RT_NULL)
+        rt_timer_start(timer);
+
     for (;;)
     {
         HAL_GPIO_TogglePin(WDI_GPIO_Port, WDI_Pin);
@@ -186,6 +604,31 @@ int main(void)
     }
 
     return RT_EOK;
+}
+
+/**
+ * @brief	rt_thread 软件定时器回调函数
+ * @details
+ * @param	parameter:线程初始参数
+ * @retval  None
+ */
+void timer1_callback(void *parameter)
+{
+    UNUSED(parameter);
+    extern void start_adc_conv(void);
+    // start_adc_conv();
+}
+
+/**
+ * @brief	rt_thread 测试对象定时器回调函数
+ * @details
+ * @param	parameter:线程初始参数
+ * @retval  None
+ */
+void test_timer_callback(void *parameter)
+{
+    extern void test_timer_poll(void);
+    test_timer_poll();
 }
 
 /**
@@ -198,8 +641,7 @@ void modbus_slave_thread_entry(void *parameter)
 {
     rt_thread_pools_t *p_rt_thread_pool = (rt_thread_pools_t *)parameter;
     /*初始化modbus接口信号量*/
-    // extern UartHandle small_modbus_uart;
-    rt_thread_hal_uartx_dma_info_init(p_rt_thread_pool, &Modbus_Object->Uart);
+    rt_thread_hal_uartx_dma_info_init(p_rt_thread_pool, &Modbus_Object->Uart); // 和finsh线程冲突
 
     for (;;)
     {
@@ -238,6 +680,102 @@ void dwin_recive_thread_entry(void *parameter)
 }
 
 /**
+ * @brief	采样ac信号时，过零点回调函数
+ * @details
+ * @param	args: 附加参数
+ * @retval  None
+ */
+void gpio_zero_crossing_callback(void *args)
+{
+    test_t *pt = (test_t *)args;
+
+    if (pt == NULL)
+        return;
+    /*开始信号无效*/
+    if (!__GET_FLAG(pt->flag, test_start_signal))
+        return;
+    /*还未检测到过零信号*/
+    if (!__GET_FLAG(pt->flag, test_zero_crossing_signal))
+    {
+        __SET_FLAG(pt->flag, test_zero_crossing_signal);
+        /*触发adc同步采样当前ac信号*/
+        release_semaphore(trig_semaphore);
+    }
+}
+
+rt_base_t pin_number;
+/**
+ * @brief	adc开始转换线程
+ * @details
+ * @param	parameter:线程初始参数
+ * @retval  None
+ */
+void adc_start_conv_thread_entry(void *parameter)
+{
+    rt_thread_pools_t *p_rt_thread_pool = (rt_thread_pools_t *)parameter;
+    // UNUSED(p_rt_thread_pool);
+    // trig_semaphore = rt_sem_create("trig_sem", 0, RT_IPC_FLAG_PRIO);
+    trig_semaphore = p_rt_thread_pool->semaphore; // 信号量扩展到全局
+    /*得到电压过零检测引脚编号*/
+    pin_number = rt_pin_get("PA.5");
+    rt_pin_mode(pin_number, PIN_MODE_INPUT); // 过0引脚为输入模式
+    /* 绑定中断，上升沿模式，回调函数名为gpio_zero_crossing_callback */
+    rt_pin_attach_irq(pin_number, PIN_IRQ_MODE_RISING,
+                      gpio_zero_crossing_callback, p_rt_thread_pool->parameter);
+    /* 使能中断 */
+    rt_pin_irq_enable(pin_number, PIN_IRQ_ENABLE);
+    /* 脱离中断回调函数 */
+    // rt_pin_detach_irq(KEY0_PIN_NUM);
+
+    for (;;)
+    {
+        /* 永久方式等待信号量*/
+        if (p_rt_thread_pool->semaphore &&
+            rt_sem_take(p_rt_thread_pool->semaphore, RT_WAITING_FOREVER) == RT_EOK)
+        {
+            extern void start_adc_conv(void);
+            start_adc_conv();
+        }
+    }
+}
+
+/**
+ * @brief	采样数据发送到VOFA终端
+ * @details
+ * @param	parameter:线程初始参数
+ * @retval  None
+ */
+#define USING_VOFA 0
+#if (USING_VOFA)
+void vofa_send_data(void)
+{
+    extern UART_HandleTypeDef huart3;
+
+    uint8_t buf[] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0x00, 0x00, 0x80, 0x7f};
+    float fbuf[] = {0, 0, 0};
+
+    // for (uint16_t j = 0; j < sizeof(adc_buf[0]) / sizeof(adc_buf[0][0]) / 2U; ++j)
+    for (uint16_t j = 0; j < sizeof(adc_buf[0]) / sizeof(adc_buf[0][0]); ++j)
+    {
+        for (uint8_t i = 0; i < sizeof(adc_buf) / sizeof(adc_buf[0]); ++i)
+        {
+            if (i == 0)
+            {
+                adc_buf[1][j] = adc_buf[0][j] >> 16U;
+                adc_buf[0][j] &= 0x0000FFFF;
+            }
+            // memcpy(&buf[i * sizeof(float)], &adc_group[i].buf[j], sizeof(float));
+            // buf[i * sizeof(float)] = i * 0.5F;
+            fbuf[i] = (float)adc_buf[i][j] * 3.3F / 4096.0F;
+            memcpy(&buf[i * sizeof(float)], &fbuf[i], sizeof(float));
+        }
+        // memcpy(&buf[0], &fbuf[0], sizeof(fbuf));
+        HAL_UART_Transmit(&huart1, buf, sizeof(buf), 0xffff);
+    }
+}
+#endif
+
+/**
  * @brief	采样线程定时采样数据
  * @details
  * @param	parameter:线程初始参数
@@ -246,12 +784,39 @@ void dwin_recive_thread_entry(void *parameter)
 void sampling_thread_entry(void *parameter)
 {
     rt_thread_pools_t *p_rt_thread_pool = (rt_thread_pools_t *)parameter;
-    UNUSED(p_rt_thread_pool);
+    // UNUSED(p_rt_thread_pool);
+    // adc_semaphore = rt_sem_create("adc_sem", 0, RT_IPC_FLAG_PRIO);
+    adc_semaphore = p_rt_thread_pool->semaphore; // 信号量扩展到全局
+    test_t *pt = (test_t *)p_rt_thread_pool->parameter;
+    continue_semaphore = rt_sem_create("conti_sem", 0, RT_IPC_FLAG_PRIO);
 
     for (;;)
     {
-        Read_Io_Handle();
-        rt_thread_mdelay(500);
+        // Read_Io_Handle();
+        // rt_thread_mdelay(500);
+
+        /* 永久方式等待信号量*/
+        // if (rt_sem_take(adc_semaphore, RT_WAITING_FOREVER) == RT_EOK && adc_semaphore)
+        if (p_rt_thread_pool->semaphore &&
+            rt_sem_take(p_rt_thread_pool->semaphore, RT_WAITING_FOREVER) == RT_EOK)
+        {
+            extern void stop_adc_conv(void);
+            stop_adc_conv();
+
+#if (USING_VOFA)
+            UNUSED(pt);
+            vofa_send_data();
+#else
+            /*调度器上锁，上锁后不再切换到其他线程，仅响应中断*/
+            // rt_enter_critical();
+            test_data_handle(pt);
+            /*调度器解锁*/
+            // rt_exit_critical();
+
+            if (continue_semaphore != RT_NULL)
+                release_semaphore(continue_semaphore);
+#endif
+        }
     }
 }
 
@@ -261,7 +826,7 @@ void sampling_thread_entry(void *parameter)
  * @param	parameter:线程初始参数
  * @retval  None
  */
-void contrl_thread_entry(void *parameter)
+void control_thread_entry(void *parameter)
 {
     rt_thread_pools_t *p_rt_thread_pool = (rt_thread_pools_t *)parameter;
     UNUSED(p_rt_thread_pool);
@@ -270,6 +835,8 @@ void contrl_thread_entry(void *parameter)
     {
         Write_Io_Handle();
         ad9833_out_target_wave();
+        extern void test_over_current_check(void);
+        test_over_current_check();
         rt_thread_mdelay(100);
     }
 }
@@ -288,10 +855,112 @@ void test_poll_thread_entry(void *parameter)
     for (;;)
     {
         extern void test_poll(void);
-        // test_poll();
-        rt_thread_mdelay(500);
+        test_poll();
+        rt_thread_mdelay(300);
     }
 }
+
+/**
+ * @brief   获取wifi状态
+ * @details
+ * @param	None
+ * @retval  None
+ */
+static uint8_t get_wifi_state(void)
+{
+    static Gpiox_info wifi_gpio[] = {
+        {.pGPIOx = WIFI_READY_GPIO_Port, .Gpio_Pin = WIFI_READY_Pin},
+        {.pGPIOx = WIFI_LINK_GPIO_Port, .Gpio_Pin = WIFI_LINK_Pin},
+    };
+    uint8_t wifi_state = 0;
+    for (Gpiox_info *p = wifi_gpio;
+         p < wifi_gpio + sizeof(wifi_gpio) / sizeof(wifi_gpio[0]); ++p)
+    {
+        uint8_t site = p - wifi_gpio;
+        uint8_t bit = HAL_GPIO_ReadPin((GPIO_TypeDef *)p->pGPIOx, p->Gpio_Pin) ? 0 : 1;
+        wifi_state |= bit << site;
+    }
+    return wifi_state;
+}
+
+/**
+ * @brief   从modbus寄存器池拼装数字类型数据到buf
+ * @note    size 推荐为8的整数倍
+ * @details
+ * @param	pd modbus句柄
+ * @param   reg_type 寄存器类型
+ * @param   buf  数据转载缓冲区
+ * @param   size 缓冲区尺寸
+ * @retval  None
+ */
+static void form_modbus_get_digital_data_to_buf(pModbusHandle pd,
+                                                Regsiter_Type reg_type,
+                                                uint8_t *buf,
+                                                uint8_t size)
+{
+    if (pd == NULL || buf == NULL || !size)
+        return;
+
+    uint8_t coils[size];
+    pd->Mod_Operatex(pd, reg_type, Read, 0x00, coils, size);
+
+    for (uint8_t i = 0; i < size; ++i)
+    {
+        uint8_t byte = i / 8U;
+        uint8_t site = !(byte % 2U) ? byte + 1U : byte - 1U;
+        buf[site] |= coils[i] << i % 8U;
+    }
+}
+
+/**
+ * @brief   对16bit数据进行交换并追加到buf
+ * @note    size 推荐为8的整数倍
+ * @details
+ * @param	buf_16 16bit缓冲区
+ * @param   size   字节数
+ * @param   buf_8  数据转载缓冲区
+ * @retval  None
+ */
+static void swap_16bit_data_to_buf(uint16_t *buf_16,
+                                   uint8_t size,
+                                   uint8_t *buf_8)
+{
+#define __SWP16(A) ((((uint16_t)(A)&0xff00) >> 8) | \
+                    (((uint16_t)(A)&0x00ff) << 8))
+
+    if (buf_16 == NULL || buf_8 == NULL || !size)
+        return;
+
+    for (uint8_t i = 0; i < size; ++i)
+        buf_16[i] = __SWP16(buf_16[i]);
+
+    memcpy(buf_8, buf_16, size);
+}
+
+/**
+ * @brief   对16bit数据进行交换并追加到buf
+ * @note    size 推荐为8的整数倍
+ * @details
+ * @param	buf_16 16bit缓冲区
+ * @param   size   字节数
+ * @param   buf_8  数据转载缓冲区
+ * @retval  None
+ */
+// static void swap_32bit_data_to_buf(uint16_t *buf_16,
+//                                    uint8_t size,
+//                                    uint8_t *buf_8)
+// {
+// #define __SWP16(A) ((((uint16_t)(A)&0xff00) >> 8) | \
+//                     (((uint16_t)(A)&0x00ff) << 8))
+
+//     if (buf_16 == NULL || buf_8 == NULL || !size)
+//         return;
+
+//     for (uint8_t i = 0; i < size; ++i)
+//         buf_16[i] = __SWP16(buf_16[i]);
+
+//     memcpy(buf_8, buf_16, size);
+// }
 
 /**
  * @brief   定时上报数据到屏幕
@@ -301,73 +970,86 @@ void test_poll_thread_entry(void *parameter)
  */
 void report_thread_entry(void *parameter)
 {
-#define VAL_UINT8_T_NUM 4U
-#define VAL_UINT16_T_NUM 16U
-#define VAL_FLOAT_NUM 40U //浮点数据数量（不包括历史数据）
-#define BUF_SIE (VAL_UINT8_T_NUM + VAL_UINT16_T_NUM * 2U + VAL_FLOAT_NUM * 4U)
+#define VAL_UINT16_T_NUM 22U
+#define VAL_FLOAT_NUM 39U
+#define BUF_SIE (VAL_UINT16_T_NUM * 2U + VAL_FLOAT_NUM * 4U)
     rt_thread_pools_t *p_rt_thread_pool = (rt_thread_pools_t *)parameter;
     pModbusHandle pd = Modbus_Object;
     pDwinHandle pw = Dwin_Object;
-    // pmeasure_handle pm = &measure_object;
-    ptesthandle pt = &test_object;
-    uint8_t out_coil[32U];
-    uint8_t buf[BUF_SIE];
-    UNUSED(p_rt_thread_pool);
+    ptest_t pt = &test_object;
+    // uint8_t out_coil[32U];
+    uint8_t buf[BUF_SIE] = {
+        0x00, 0x00,
+        0x00, 0x00,
+        pt->user_freq, 0x00,
+        pt->ac.wave_param.wave_mode, 0x00,
+        /*wifi start*/
+        0x00, 0x00,
+        0x00, 0x00,
+        0x02, 0x00,
+        0x01, 0x00,
+        0x01, 0x00,
+        0x01, 0x00,
+        0x00, 0x00,
+        0x00, 0x00,
+        /*wifi end*/
 
+        0x00, 0x00,
+        0x00, 0x00,
+        0x00, 0x00,
+        0x00, 0x00,
+        0x00, 0x00,
+        0x00, 0x00,
+        0x00, 0x00,
+        0x00, 0x00,
+        0x00, 0x00,
+        pt->ac.wave_param.fre_sfr, 0x00,
+        pt->ac.wave_param.phase, pt->ac.wave_param.phase >> 8U,
+        pt->ac.wave_param.phase_sfr, 0x00,
+        pt->ac.wave_param.range, 0x00,
+        pt->cur_group.start, 0x00,
+        pt->cur_group.end, 0x000,
+        0x00, 0x00
+
+    };
+    UNUSED(p_rt_thread_pool);
+    if (pw)
+    {
+        rt_thread_mdelay(3000); // 解决首次上电迪文屏幕不接收参数问题
+        // pw->Dw_Page(pw, MAIN_PAGE); //切换到登录页面
+        // rt_thread_mdelay(10);
+        // 系统参数刷新
+        pw->Dw_Write(pw, DWIN_OPERATE_SHIFT_ADDR, buf, 28 * sizeof(uint16_t));
+        rt_thread_mdelay(50);
+        /*主动请求迪文屏幕更新本地RTC时间*/
+        pw->Dw_Read(pw, DWIN_SYSTEM_READ_RTC_ADDR, 0x04);
+        rt_thread_mdelay(50);
+    }
     for (;;)
     {
         if (pd && pw && pt->pre)
         {
+            uint16_t buf_16[] = {pt->test_result, pt->cartoon.over_current};
             memset(buf, 0x00, sizeof(buf));
             /*数字输出:32路*/
-            pd->Mod_Operatex(pd, Coil, Read, 0x00, out_coil, sizeof(out_coil));
-            for (uint8_t i = 0; i < sizeof(out_coil); ++i)
-            {
-                uint8_t site = i / 8U;
+            form_modbus_get_digital_data_to_buf(pd, Coil, &buf[0], 32U);
+            /*获取wifi模块状态*/
+            buf[2] |= (get_wifi_state() & 0x03) << 6U;
+            //            dbg_raw("\r\nwifi_state:%#x.\r\n", buf[2]);
+            swap_16bit_data_to_buf(buf_16, sizeof(buf_16), &buf[4]);
 
-                site = !site ? 1U : site == 1U ? 0U
-                                : site == 2U   ? 3U
-                                               : 2U;
-                buf[site] |= out_coil[i] << i % 8U;
-            }
-            /*波形选项*/
-            buf[5] = pt->ac.wave_param.wave_mode;
-            /*电压模式*/
-            buf[7] = pt->pre->cur_power;
-            /*wifi开关*/
-            buf[9] = 0x01;
-            /*继电器策略*/
-            buf[11] = pt->cur_tactics;
-            /*通道判定结果*/
-            buf[13] = (uint8_t)pt->test_result;
-            /*通道告警*/
-            buf[15] = 0x00;
-
-            /*32bit采样数据+电压电流偏差*/
-            memcpy(&buf[VAL_UINT16_T_NUM * 2U], pt->data.val_buf, sizeof(pt->data.val_buf));
-            memcpy(&buf[VAL_UINT16_T_NUM * 2U + 16U * sizeof(float)], pt->data.offset_buf,
-                   sizeof(pt->data.offset_buf));
+            // /*通道判定结果*/
+            // buf[5] = pt->test_result;
+            // /*过流动画*/
+            // buf[7] = pt->cartoon.over_current;
+            /*3路模拟输入、1路模拟输出*/
             /*频率*/
-            // memcpy(&buf[VAL_UINT16_T_NUM * 2U + 32U * 4U], &pt->ac.wave_param.frequency, 4U);
-            // /*系统允许电压/电流偏差*/
-            // memcpy(&buf[VAL_UINT16_T_NUM * 2U + 32U * 4U + 4U], &pt->comm_param, 8U);
-            // /*相位*/
-            // memcpy(&buf[VAL_UINT16_T_NUM * 2U + 32U * 4U + 12U], &pt->ac.wave_param.phase, 2U);
-            // /*频率寄存器、相位寄存器、幅度、波形*/
-            // memcpy(&buf[VAL_UINT16_T_NUM * 2U + 32U * 4U + 14U], &pt->ac.wave_param.fre_sfr,
-            //        VAL_UINT8_T_NUM);
-            float temp_buf[8] = {
-                (float)pt->ac.wave_param.frequency,
-                (float)pt->ac.wave_param.fre_sfr,
-                (float)pt->ac.wave_param.phase,
-                (float)pt->ac.wave_param.phase_sfr,
-                (float)pt->ac.wave_param.range,
-                (float)pt->cur_segment,
-                (float)pt->comm_param.voltage_offset,
-                (float)pt->comm_param.current_offset,
-            };
-
-            memcpy(&buf[VAL_UINT16_T_NUM * 2U + 32U * 4U], temp_buf, sizeof(temp_buf));
+            memcpy(&buf[VAL_UINT16_T_NUM * 2U + 4U * sizeof(float)], &pt->ac.wave_param.frequency,
+                   sizeof(pt->ac.wave_param.frequency));
+            /*设置位电压偏差率、电流偏差率*/
+            memcpy(&buf[VAL_UINT16_T_NUM * 2U + 5U * sizeof(float)], &pt->comm_param, sizeof(pt->comm_param));
+            /*7组32bit采样数据+实际电压电流偏差*/
+            memcpy(&buf[VAL_UINT16_T_NUM * 2U + 7U * sizeof(float)], pt->data.p, pt->data.size * sizeof(test_data_t));
             /*4字节数据交换*/
             for (uint8_t i = 0; i < VAL_FLOAT_NUM; ++i)
                 endian_swap(&buf[VAL_UINT16_T_NUM * sizeof(uint16_t) + i * sizeof(float)], 0, sizeof(float));
@@ -376,7 +1058,6 @@ void report_thread_entry(void *parameter)
         }
         rt_thread_mdelay(1000);
     }
-#undef VAL_UINT8_T_NUM
 #undef VAL_UINT16_T_NUM
 #undef VAL_FLOAT_NUM
 #undef BUF_SIE

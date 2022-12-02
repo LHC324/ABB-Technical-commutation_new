@@ -50,7 +50,18 @@ extern "C"
         Target_Channel Channel;
     } Dac_HandleTypeDef;
 
+#define IO_SIGNAL_ADC_NUM 3U
+#define IO_SIGNAL_ADC_DATA_SIZE 256U
+    typedef struct
+    {
+        unsigned int count;
+        unsigned int buf[IO_SIGNAL_ADC_DATA_SIZE];
+        unsigned int finish_flag;
+    } adc_t;
+
     extern unsigned int Adc_buffer[ADC_DMA_SIZE];
+    extern adc_t adc_group[3U];
+    extern unsigned int adc_buf[IO_SIGNAL_ADC_NUM][IO_SIGNAL_ADC_DATA_SIZE];
 
     extern void Read_Digital_Io(void);
     extern void Read_Analog_Io(void);

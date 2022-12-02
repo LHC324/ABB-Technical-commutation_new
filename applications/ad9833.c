@@ -15,8 +15,9 @@
 
 /*stm32 SPI使用方法：https://blog.csdn.net/otto1230/article/details/100122559*/
 extern SPI_HandleTypeDef hspi1;
+extern void set_timer_sampling_freq(float cur_freq);
 /*定义一个ad9833对象*/
-ad9833_handletypedef ad9833_object = {
+ad9833_t ad9833_object = {
     .pspi = &hspi1,
     .cs = {
         .pGPIOx = C_S_GPIO_Port,
@@ -26,6 +27,7 @@ ad9833_handletypedef ad9833_object = {
         .pGPIOx = FSYCN_GPIO_Port,
         .Gpio_Pin = FSYCN_Pin,
     },
+    .set_seampling_freq = set_timer_sampling_freq,
 };
 
 /*ad9833互斥标志*/
@@ -91,7 +93,7 @@ static void ad9833_dely(void)
  * @param  data 16bit数据
  * @retval None
  */
-static void ad9833_write(ad9833_handletypedef *pa, uint16_t data)
+static void ad9833_write(ad9833_t *pa, uint16_t data)
 {
 #define SPI_TIMEOUT 0x100
     if (pa && pa->cs.pGPIOx && pa->scyn.pGPIOx)
@@ -115,7 +117,7 @@ static void ad9833_write(ad9833_handletypedef *pa, uint16_t data)
  * @param  data 16bit数据
  * @retval None
  */
-void ad9833_amplitude(ad9833_handletypedef *pa,
+void ad9833_amplitude(ad9833_t *pa,
                       uint16_t data)
 {
     if (pa && pa->cs.pGPIOx)
@@ -133,7 +135,7 @@ void ad9833_amplitude(ad9833_handletypedef *pa,
         /*软件拉高CS信号*/
         HAL_GPIO_WritePin((GPIO_TypeDef *)pa->cs.pGPIOx, pa->cs.Gpio_Pin, (GPIO_PinState)GPIO_PIN_SET);
         // HAL_GPIO_WritePin(C_S_GPIO_Port, C_S_Pin, GPIO_PIN_SET);
-        AD9833_DEBUG_R("data:%#x\n", data | 0x1100);
+        // AD9833_DEBUG_R("data:%#x\n", data | 0x1100);
     }
 #undef SPI_TIMEOUT
 }
@@ -166,7 +168,7 @@ static uint16_t ad9833_set_phase_register(ad9833_phase_regs phase_reg,
  * @param  phase_sfr 相位寄存器
  * @retval None
  */
-void ad9833_set_wave(ad9833_handletypedef *pa,
+void ad9833_set_wave(ad9833_t *pa,
                      float freq,
                      uint8_t freq_sfr,
                      ad9833_wave wave,
@@ -175,8 +177,8 @@ void ad9833_set_wave(ad9833_handletypedef *pa,
 {
     float fre_data = (freq * AD9833_REG_MAX_VAL) / AD9833_SOC_FREQ;
     uint16_t sfr_haead = freq_sfr ? 0x8000 : 0x4000;
-    uint16_t freq_lsb = ((uint32_t)fre_data & 0x3fff) | sfr_haead;          //把16bit的最高两位去除，16位数换去掉高位后变成了14位
-    uint16_t freq_msb = (((uint32_t)fre_data >> 14U) & 0x3fff) | sfr_haead; //高16bit去掉最高2位
+    uint16_t freq_lsb = ((uint32_t)fre_data & 0x3fff) | sfr_haead;          // 把16bit的最高两位去除，16位数换去掉高位后变成了14位
+    uint16_t freq_msb = (((uint32_t)fre_data >> 14U) & 0x3fff) | sfr_haead; // 高16bit去掉最高2位
     // uint16_t phase_data = phase | 0xC000;                                   //相位值;
     uint16_t phase_data = ad9833_set_phase_register(phase_sfr, phase);
     uint16_t wave_mode = wave < ad9833_tri   ? AD9833_SIN_WAVE_CMD
@@ -188,13 +190,20 @@ void ad9833_set_wave(ad9833_handletypedef *pa,
         AD9833_WRITE_ONECE_CMD, /*选择数据一次写入，b28位和reset位为1*/
         freq_lsb,               // L14，选择频率寄存器0的低14位数据输入
         freq_msb,               // H14 频率寄存器的高14位数据输入
-        phase_data,             //设置相位
-        wave_mode,              //设置波形
+        phase_data,             // 设置相位
+        wave_mode,              // 设置波形
     };
+    static float last_freq = 0;
     // AD9833_DEBUG_R("[ad9833_info]\nf_lsb\tf_msb\tphase\twave\n");
     // AD9833_DEBUG_R("-----\t-----\t-----\t----\n%#x\t%#x\t%#x\t%#x\n",
     //                freq_lsb, freq_msb, phase_data, wave_mode);
 
+    /*设置采样定时器*/
+    if (pa->set_seampling_freq && (freq != last_freq))
+    {
+        pa->set_seampling_freq(freq);
+        last_freq = freq;
+    }
     /*初始化spi为1、0模式*/
     hspi1.Init.CLKPolarity = SPI_POLARITY_HIGH;
     HAL_SPI_Init(&hspi1);
@@ -296,6 +305,7 @@ static void set_ad9833(int argc, char **argv)
 
     ad9833_set_wave(&ad9833_object, freq, freq_sfr, (ad9833_wave)wave_type, phase, phase_sfr);
     ad9833_amplitude(&ad9833_object, range);
+    AD9833_DEBUG_R("data:%#x\n", range | 0x1100);
 }
 MSH_CMD_EXPORT(set_ad9833, operate sample
                : set_ad9833(freq) | (f_sfr) | (wave sin / tri / squ) | (phase) | (p_sfr) | (range) >);
@@ -307,10 +317,11 @@ MSH_CMD_EXPORT(set_ad9833, operate sample
  * @param  data 12bit数据
  * @retval None
  */
-ad9833_coding_table ad9833_check_wave_param(ad9833_wave_out_handletypedef *pad)
+ad9833_coding_table ad9833_check_wave_param(ad9833_out_t *pad)
 {
 #define AD9833_OUT_MAX_HZ 12000000.0F
 #define AD9833_MAX_PHASE 360U
+#define AD9833_MAX_RANGE 255U
 #define AD9833_MAX_REG_NUM 1U
 #define AD9833_MAX_WAVE_NUM 3U
 
@@ -325,6 +336,8 @@ ad9833_coding_table ad9833_check_wave_param(ad9833_wave_out_handletypedef *pad)
         return ad9833_phase_err;
     if (pad->phase_sfr > AD9833_MAX_REG_NUM)
         return ad9833_phase_sfr_err;
+    if (pad->range > AD9833_MAX_RANGE)
+        return ad9833_range_err;
     if (pad->wave_mode > AD9833_MAX_WAVE_NUM)
         return ad9833_wave_type_err;
 
@@ -333,6 +346,7 @@ ad9833_coding_table ad9833_check_wave_param(ad9833_wave_out_handletypedef *pad)
 #undef AD9833_OUT_MAX_HZ
 #undef AD9833_MAX_PHASE
 #undef AD9833_MAX_REG_NUM
+#undef AD9833_MAX_RANGE
 #undef AD9833_MAX_WAVE_NUM
 }
 
@@ -344,9 +358,9 @@ ad9833_coding_table ad9833_check_wave_param(ad9833_wave_out_handletypedef *pad)
  */
 void ad9833_out_target_wave(void)
 {
-    ad9833_handletypedef *pa = &ad9833_object;
+    ad9833_t *pa = &ad9833_object;
     pModbusHandle pd = Modbus_Object;
-    ad9833_wave_out_handletypedef output_wave, *pad = &output_wave;
+    ad9833_out_t output_wave, *pad = &output_wave;
 
     if ((pa == NULL) || (pd == NULL))
         return;
@@ -359,7 +373,11 @@ void ad9833_out_target_wave(void)
 #endif
     }
     ad9833_coding_table result = ad9833_check_wave_param(pad);
+
     if (!set_ad9833_flag && (result == ad9833_ok))
+    {
         ad9833_set_wave(pa, pad->frequency, (uint8_t)pad->fre_sfr, pad->wave_mode,
                         pad->phase, (ad9833_phase_regs)pad->phase_sfr);
+        ad9833_amplitude(pa, pad->range);
+    }
 }

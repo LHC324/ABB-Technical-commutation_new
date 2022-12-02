@@ -336,9 +336,9 @@
             <v6Rtti>0</v6Rtti>
             <VariousControls>
               <MiscControls></MiscControls>
-              <Define>__STDC_LIMIT_MACROS, STM32F103xE, USE_HAL_DRIVER, RT_USING_LIBC, __CLK_TCK=RT_TICK_PER_SECOND, __RTTHREAD__, RT_USING_ARM_LIBC</Define>
+              <Define>__STDC_LIMIT_MACROS, LFS_CONFIG=lfs_config.h, STM32F103xE, USE_HAL_DRIVER, RT_USING_LIBC, __CLK_TCK=RT_TICK_PER_SECOND, __RTTHREAD__, RT_USING_ARM_LIBC</Define>
               <Undefine></Undefine>
-              <IncludePath>applications\lhc_modbus\Inc;rt-thread\components\libc\posix\io\poll;rt-thread\components\drivers\include;rt-thread\components\libc\posix\delay;rt-thread\components\libc\compilers\common\extension\fcntl\octal;.;rt-thread\libcpu\arm\cortex-m3;board;packages\CmBacktrace-v1.4.1;rt-thread\components\drivers\include;rt-thread\components\libc\compilers\common\include;rt-thread\components\libc\posix\pthreads;rt-thread\components\libc\posix\io\stdio;libraries\HAL_Drivers;rt-thread\components\drivers\include;rt-thread\components\libc\posix\ipc;rt-thread\components\drivers\include;rt-thread\libcpu\arm\common;applications;rt-thread\components\finsh;libraries\STM32F1xx_HAL\CMSIS\Device\ST\STM32F1xx\Include;applications;applications\lhc_dwin\Inc;libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Inc;rt-thread\components\libc\compilers\common\extension;packages\thread_pool-latest;libraries\HAL_Drivers\CMSIS\Include;rt-thread\include;libraries\HAL_Drivers\config;board\CubeMX_Config\Core\Inc;rt-thread\components\drivers\hwcrypto</IncludePath>
+              <IncludePath>board;rt-thread\components\drivers\include;rt-thread\libcpu\arm\common;rt-thread\components\finsh;packages\libcsv-latest;rt-thread\components\dfs\include;rt-thread\components\drivers\include;libraries\STM32F1xx_HAL\CMSIS\Device\ST\STM32F1xx\Include;packages\CmBacktrace-v1.4.1;applications\lhc_dwin\Inc;packages\thread_pool-latest;rt-thread\components\libc\compilers\common\extension;libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Inc;libraries\HAL_Drivers\config;rt-thread\components\drivers\hwcrypto;rt-thread\components\libc\posix\delay;board\CubeMX_Config\Core\Inc;packages\littlefs-latest;applications;packages\minIni-latest\dev;libraries\HAL_Drivers\CMSIS\Include;libraries\HAL_Drivers\drv_flash;rt-thread\components\drivers\include;rt-thread\components\libc\compilers\common\extension\fcntl\octal;rt-thread\components\drivers\include;rt-thread\components\drivers\include;rt-thread\components\libc\posix\ipc;rt-thread\components\libc\posix\io\stdio;.;rt-thread\components\libc\posix\pthreads;rt-thread\components\drivers\include;rt-thread\components\fal\inc;rt-thread\include;packages\ota_downloader-latest;rt-thread\components\libc\compilers\common\include;rt-thread\libcpu\arm\cortex-m3;rt-thread\components\utilities\ymodem;applications;libraries\HAL_Drivers;packages\event_recorder-latest;applications\lhc_modbus\Inc;rt-thread\components\libc\posix\io\poll;packages\FlashDB-v1.1.2\inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -383,54 +383,9 @@
           <GroupName>Applications</GroupName>
           <Files>
             <File>
-              <FileName>ad9833.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\ad9833.c</FilePath>
-            </File>
-            <File>
-              <FileName>test.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\test.c</FilePath>
-            </File>
-            <File>
-              <FileName>small_modbus.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\lhc_modbus\Src\small_modbus.c</FilePath>
-            </File>
-            <File>
-              <FileName>io_signal.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\io_signal.c</FilePath>
-            </File>
-            <File>
-              <FileName>small_modbus_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\lhc_modbus\Src\small_modbus_port.c</FilePath>
-            </File>
-            <File>
-              <FileName>tool.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\lhc_dwin\Src\tool.c</FilePath>
-            </File>
-            <File>
-              <FileName>flash.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\flash.c</FilePath>
-            </File>
-            <File>
-              <FileName>dwin.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\lhc_dwin\Src\dwin.c</FilePath>
-            </File>
-            <File>
               <FileName>stm32_irq.c</FileName>
               <FileType>1</FileType>
               <FilePath>applications\stm32_irq.c</FilePath>
-            </File>
-            <File>
-              <FileName>dwin_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\lhc_dwin\Src\dwin_port.c</FilePath>
             </File>
             <File>
               <FileName>ad9833function.c</FileName>
@@ -438,14 +393,54 @@
               <FilePath>applications\ad9833function.c</FilePath>
             </File>
             <File>
+              <FileName>relay.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\relay.c</FilePath>
+            </File>
+            <File>
+              <FileName>small_modbus_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\lhc_modbus\Src\small_modbus_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>test.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\test.c</FilePath>
+            </File>
+            <File>
+              <FileName>tool.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\lhc_dwin\Src\tool.c</FilePath>
+            </File>
+            <File>
               <FileName>main.c</FileName>
               <FileType>1</FileType>
               <FilePath>applications\main.c</FilePath>
             </File>
             <File>
-              <FileName>relay.c</FileName>
+              <FileName>ad9833.c</FileName>
               <FileType>1</FileType>
-              <FilePath>applications\relay.c</FilePath>
+              <FilePath>applications\ad9833.c</FilePath>
+            </File>
+            <File>
+              <FileName>dwin.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\lhc_dwin\Src\dwin.c</FilePath>
+            </File>
+            <File>
+              <FileName>dwin_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\lhc_dwin\Src\dwin_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>io_signal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\io_signal.c</FilePath>
+            </File>
+            <File>
+              <FileName>small_modbus.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\lhc_modbus\Src\small_modbus.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -453,14 +448,14 @@
           <GroupName>cm_backtrace</GroupName>
           <Files>
             <File>
-              <FileName>cm_backtrace.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\CmBacktrace-v1.4.1\cm_backtrace.c</FilePath>
-            </File>
-            <File>
               <FileName>cmb_flash_log.c</FileName>
               <FileType>1</FileType>
               <FilePath>packages\CmBacktrace-v1.4.1\cmb_flash_log.c</FilePath>
+            </File>
+            <File>
+              <FileName>cm_backtrace.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\CmBacktrace-v1.4.1\cm_backtrace.c</FilePath>
             </File>
             <File>
               <FileName>cmb_port.c</FileName>
@@ -593,6 +588,11 @@
               <FilePath>rt-thread\components\drivers\misc\pin.c</FilePath>
             </File>
             <File>
+              <FileName>mtd_nor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\drivers\mtd\mtd_nor.c</FilePath>
+            </File>
+            <File>
               <FileName>lptimer.c</FileName>
               <FileType>1</FileType>
               <FilePath>rt-thread\components\drivers\pm\lptimer.c</FilePath>
@@ -601,6 +601,16 @@
               <FileName>pm.c</FileName>
               <FileType>1</FileType>
               <FilePath>rt-thread\components\drivers\pm\pm.c</FilePath>
+            </File>
+            <File>
+              <FileName>rtc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\drivers\rtc\rtc.c</FilePath>
+            </File>
+            <File>
+              <FileName>soft_rtc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\drivers\rtc\soft_rtc.c</FilePath>
             </File>
             <File>
               <FileName>serial.c</FileName>
@@ -643,6 +653,11 @@
               <FilePath>libraries\HAL_Drivers\drv_crypto.c</FilePath>
             </File>
             <File>
+              <FileName>drv_flash_f1.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\HAL_Drivers\drv_flash\drv_flash_f1.c</FilePath>
+            </File>
+            <File>
               <FileName>drv_gpio.c</FileName>
               <FileType>1</FileType>
               <FilePath>libraries\HAL_Drivers\drv_gpio.c</FilePath>
@@ -651,6 +666,71 @@
               <FileName>drv_usart.c</FileName>
               <FileType>1</FileType>
               <FilePath>libraries\HAL_Drivers\drv_usart.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>event_recorder</GroupName>
+          <Files>
+            <File>
+              <FileName>event_recorder.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\event_recorder-latest\event_recorder.c</FilePath>
+            </File>
+            <File>
+              <FileName>event_recorder_tc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\event_recorder-latest\event_recorder_tc.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Fal</GroupName>
+          <Files>
+            <File>
+              <FileName>fal_flash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\fal\src\fal_flash.c</FilePath>
+            </File>
+            <File>
+              <FileName>fal_rtt.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\fal\src\fal_rtt.c</FilePath>
+            </File>
+            <File>
+              <FileName>fal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\fal\src\fal.c</FilePath>
+            </File>
+            <File>
+              <FileName>fal_partition.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\fal\src\fal_partition.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Filesystem</GroupName>
+          <Files>
+            <File>
+              <FileName>dfs_posix.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\dfs\src\dfs_posix.c</FilePath>
+            </File>
+            <File>
+              <FileName>dfs_fs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\dfs\src\dfs_fs.c</FilePath>
+            </File>
+            <File>
+              <FileName>dfs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\dfs\src\dfs.c</FilePath>
+            </File>
+            <File>
+              <FileName>dfs_file.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\dfs\src\dfs_file.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -676,6 +756,46 @@
               <FileName>cmd.c</FileName>
               <FileType>1</FileType>
               <FilePath>rt-thread\components\finsh\cmd.c</FilePath>
+            </File>
+            <File>
+              <FileName>msh_file.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\finsh\msh_file.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>FlashDB</GroupName>
+          <Files>
+            <File>
+              <FileName>fdb_file.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\FlashDB-v1.1.2\src\fdb_file.c</FilePath>
+            </File>
+            <File>
+              <FileName>fdb_utils.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\FlashDB-v1.1.2\src\fdb_utils.c</FilePath>
+            </File>
+            <File>
+              <FileName>fdb_kvdb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\FlashDB-v1.1.2\src\fdb_kvdb.c</FilePath>
+            </File>
+            <File>
+              <FileName>fdb_tsdb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\FlashDB-v1.1.2\src\fdb_tsdb.c</FilePath>
+            </File>
+            <File>
+              <FileName>fdb_cmd.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\FlashDB-v1.1.2\src\fdb_cmd.c</FilePath>
+            </File>
+            <File>
+              <FileName>fdb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\FlashDB-v1.1.2\src\fdb.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -750,47 +870,22 @@
           </Files>
         </Group>
         <Group>
+          <GroupName>libcsv-3.0.3</GroupName>
+          <Files>
+            <File>
+              <FileName>libcsv.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\libcsv-latest\libcsv.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
           <GroupName>Libraries</GroupName>
           <Files>
             <File>
-              <FileName>stm32f1xx_hal_rcc_ex.c</FileName>
+              <FileName>stm32f1xx_hal_rtc_ex.c</FileName>
               <FileType>1</FileType>
-              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_rcc_ex.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32f1xx_hal_cortex.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_cortex.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32f1xx_hal_spi.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_spi.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32f1xx_hal_flash_ex.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_flash_ex.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32f1xx_hal_rcc.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_rcc.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32f1xx_hal_pwr.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_pwr.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32f1xx_hal_dma.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_dma.c</FilePath>
-            </File>
-            <File>
-              <FileName>stm32f1xx_hal_adc_ex.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_adc_ex.c</FilePath>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_rtc_ex.c</FilePath>
             </File>
             <File>
               <FileName>stm32f1xx_hal_adc.c</FileName>
@@ -808,6 +903,61 @@
               <FilePath>libraries\STM32F1xx_HAL\CMSIS\Device\ST\STM32F1xx\Source\Templates\system_stm32f1xx.c</FilePath>
             </File>
             <File>
+              <FileName>stm32f1xx_hal_cec.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_cec.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_gpio_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_gpio_ex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_spi.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_spi.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_tim.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_tim.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_rcc_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_rcc_ex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_rtc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_rtc.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_pwr.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_pwr.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_adc_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_adc_ex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_dac.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_dac.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_tim_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_tim_ex.c</FilePath>
+            </File>
+            <File>
               <FileName>stm32f1xx_hal_uart.c</FileName>
               <FileType>1</FileType>
               <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_uart.c</FilePath>
@@ -818,9 +968,34 @@
               <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_usart.c</FilePath>
             </File>
             <File>
-              <FileName>stm32f1xx_hal.c</FileName>
+              <FileName>stm32f1xx_hal_gpio.c</FileName>
               <FileType>1</FileType>
-              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal.c</FilePath>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_gpio.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_cortex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_cortex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_nor.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_nor.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_dac_ex.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_dac_ex.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_rcc.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_rcc.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32f1xx_hal_dma.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_dma.c</FilePath>
             </File>
             <File>
               <FileName>stm32f1xx_hal_flash.c</FileName>
@@ -828,19 +1003,54 @@
               <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_flash.c</FilePath>
             </File>
             <File>
-              <FileName>stm32f1xx_hal_cec.c</FileName>
+              <FileName>stm32f1xx_hal_flash_ex.c</FileName>
               <FileType>1</FileType>
-              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_cec.c</FilePath>
+              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_flash_ex.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>littlefs</GroupName>
+          <Files>
+            <File>
+              <FileName>dfs_lfs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\littlefs-latest\dfs_lfs.c</FilePath>
             </File>
             <File>
-              <FileName>stm32f1xx_hal_gpio_ex.c</FileName>
+              <FileName>lfs_util.c</FileName>
               <FileType>1</FileType>
-              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_gpio_ex.c</FilePath>
+              <FilePath>packages\littlefs-latest\lfs_util.c</FilePath>
             </File>
             <File>
-              <FileName>stm32f1xx_hal_gpio.c</FileName>
+              <FileName>lfs_crc.c</FileName>
               <FileType>1</FileType>
-              <FilePath>libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Src\stm32f1xx_hal_gpio.c</FilePath>
+              <FilePath>packages\littlefs-latest\lfs_crc.c</FilePath>
+            </File>
+            <File>
+              <FileName>lfs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\littlefs-latest\lfs.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>minIni</GroupName>
+          <Files>
+            <File>
+              <FileName>minIni.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\minIni-latest\dev\minIni.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>ota_downloader</GroupName>
+          <Files>
+            <File>
+              <FileName>ymodem_ota.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\ota_downloader-latest\src\ymodem_ota.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -916,6 +1126,21 @@
               <FileName>thread_pool.c</FileName>
               <FileType>1</FileType>
               <FilePath>packages\thread_pool-latest\thread_pool.c</FilePath>
+            </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>Utilities</GroupName>
+          <Files>
+            <File>
+              <FileName>ry_sy.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\utilities\ymodem\ry_sy.c</FilePath>
+            </File>
+            <File>
+              <FileName>ymodem.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\utilities\ymodem\ymodem.c</FilePath>
             </File>
           </Files>
         </Group>

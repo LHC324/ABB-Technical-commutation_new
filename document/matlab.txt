@@ -1,0 +1,10 @@
+表变为数组  C = table2array(data1)
+N*M数组变为 1*（M*N）数组
+reshape(C',256,1) M=256,N=1
+
+C = table2array(data)
+
+ [y1,y2] = get_wave('wave_data.txt')
+
+A3(9)
+r1 = atan2(121.16, 5.4246)*180/pi

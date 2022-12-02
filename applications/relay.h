@@ -14,20 +14,23 @@ extern "C"
 {
 #endif
 /*继电器动作最大组数*/
-#define ACTION_MAX_GROUP_NUM 8U
+#define ACTION_MAX_GROUP_NUM 7U
 /*继电器动作的下一次时间*/
-#define RELAY_ACTION_NEXT_TIMES 1000U
+#define RELAY_ACTION_NEXT_TIMES 15U // 000
     typedef enum
     {
-        re_ok = 0,     /*无错误*/
-        re_p_is_null,  /*空指针*/
-        re_coil_over,  /*继电器池越界*/
-        re_power_err,  /*电源类型错误*/
-        re_act_err,    /*继电器操作类型错误*/
-        re_praram_err, /*继电器api接口参数错误*/
-        re_find_null,  /*查找对象为空*/
-        re_call_err,   /*函数调用返回错误*/
-        re_other_err,  /*其他错误*/
+        re_ok = 0,         /*无错误*/
+        re_p_is_null,      /*空指针*/
+        re_coil_over,      /*继电器池越界*/
+        re_power_err,      /*电源类型错误*/
+        re_act_err,        /*继电器操作类型错误*/
+        re_praram_err,     /*继电器api接口参数错误*/
+        re_find_null,      /*查找对象为空*/
+        re_call_err,       /*函数调用返回错误*/
+        re_unknown_state,  /*未知状态*/
+        re_param_size_err, /*参数尺寸错误*/
+        re_wait_continue,  /*继电器等待下一阶段*/
+        re_other_err,      /*其他错误*/
     } relay_error_code;
 
     typedef enum
@@ -48,9 +51,16 @@ extern "C"
     typedef enum
     {
         dc_out = 0, /*直流输出*/
-        ac_out,     /*交流输出*/
+        ac1_out,    /*交流输出:30V@50Hz*/
+        ac2_out,    /*交流输出:xV@xHz*/
         null_out,
     } relay_power_type;
+
+    typedef struct
+    {
+        unsigned short start;
+        unsigned short end;
+    } relay_group;
     typedef struct
     {
         relay_tactics_type action_type;
@@ -58,17 +68,31 @@ extern "C"
     } relay_action_group;
     struct relay_handletypedef
     {
+        // unsigned int single_flag; // 标记一些参数单次设置
         relay_power_type cur_power;
         relay_action_group *pag;
         unsigned short action_group_size;
-        unsigned char *pcoil;
-        unsigned char coil_size;
-        unsigned int next_time;  /*继电器动作的下一次时间*/
-        unsigned char cur_group; /*自定义时使用*/
+        struct
+        {
+            unsigned char *p;
+            unsigned int size;
+        } coil;
+        unsigned int next_time; /*继电器动作的下一次时间*/
+        struct
+        {
+            void *p;
+            unsigned int num;
+        } timer;
 
-        void *pmodbus;
+        // unsigned char cur_group; /*自定义时使用*/
+        relay_group cur_group;
+        unsigned int cur_exe_count; // 系统当前执行次数
+
+        // void *pmodbus;
         void (*relay_delay)(unsigned int);
-        void (*relay_callback)(pre_handle, unsigned char, unsigned char);
+        // void (*relay_set_coil_interface)
+        // relay_error_code (*relay_callback)(pre_handle, unsigned char);
+        relay_error_code (*relay_callback)(pre_handle);
     };
 
     extern relay_handle relay_object;

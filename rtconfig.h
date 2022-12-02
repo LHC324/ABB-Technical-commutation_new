@@ -46,8 +46,8 @@
 
 #define RT_USING_DEVICE
 #define RT_USING_CONSOLE
-#define RT_CONSOLEBUF_SIZE 128
-#define RT_CONSOLE_DEVICE_NAME "uart1"
+#define RT_CONSOLEBUF_SIZE 256
+#define RT_CONSOLE_DEVICE_NAME "uart3"
 #define RT_VER_NUM 0x50000
 #define ARCH_ARM
 #define RT_USING_CPU_FFS
@@ -73,6 +73,16 @@
 #define MSH_USING_BUILT_IN_COMMANDS
 #define FINSH_USING_DESCRIPTION
 #define FINSH_ARG_MAX 10
+#define RT_USING_DFS
+#define DFS_USING_POSIX
+#define DFS_USING_WORKDIR
+#define DFS_FILESYSTEMS_MAX 4
+#define DFS_FILESYSTEM_TYPES_MAX 4
+#define DFS_FD_MAX 16
+#define RT_USING_FAL
+#define FAL_DEBUG_CONFIG
+#define FAL_DEBUG 1
+#define FAL_PART_HAS_TABLE_CFG
 
 /* Device Drivers */
 
@@ -82,8 +92,11 @@
 #define RT_SERIAL_USING_DMA
 #define RT_SERIAL_RB_BUFSZ 64
 #define RT_USING_PIN
+#define RT_USING_MTD_NOR
 #define RT_USING_PM
 #define PM_TICKLESS_THRESHOLD_TIME 5
+#define RT_USING_RTC
+#define RT_USING_SOFT_RTC
 #define RT_USING_HWCRYPTO
 #define RT_HWCRYPTO_DEFAULT_NAME "hwcryto"
 #define RT_HWCRYPTO_IV_MAX_SIZE 16
@@ -98,6 +111,7 @@
 
 /* POSIX (Portable Operating System Interface) layer */
 
+#define RT_USING_POSIX_FS
 #define RT_USING_POSIX_DELAY
 #define RT_USING_POSIX_CLOCK
 #define RT_USING_PTHREADS
@@ -114,6 +128,9 @@
 
 /* Utilities */
 
+#define RT_USING_RYM
+#define YMODEM_USING_CRC_TABLE
+#define YMODEM_USING_FILE_TRANSFER
 
 /* RT-Thread online packages */
 
@@ -130,6 +147,10 @@
 
 /* IoT Cloud */
 
+#define PKG_USING_OTA_DOWNLOADER
+#define OTA_DOWNLOADER_DEBUG
+#define PKG_USING_YMODEM_OTA
+#define PKG_USING_OTA_DOWNLOADER_LATEST_VERSION
 
 /* security packages */
 
@@ -177,16 +198,48 @@
 
 /* Micrium: Micrium software products porting for RT-Thread */
 
+#define PKG_USING_FLASHDB
+#define FDB_USING_KVDB
+#define FDB_USING_TSDB
+#define FDB_USING_FAL_MODE
+#define FDB_WRITE_GRAN_32BITS
+#define FDB_WRITE_GRAN 32
+#define FDB_NOT_USING_FILE_MODE
+#define FDB_DEBUG_ENABLE
+#define PKG_USING_FLASHDB_V10102
+#define PKG_FLASHDB_VER_NUM 0x10102
+#define PKG_USING_LITTLEFS
+#define PKG_USING_LITTLEFS_LATEST_VERSION
+#define LFS_READ_SIZE 16
+#define LFS_PROG_SIZE 16
+#define LFS_BLOCK_SIZE 2048
+#define LFS_CACHE_SIZE 256
+#define LFS_BLOCK_CYCLES 200
+#define LFS_THREADSAFE
+#define LFS_LOOKAHEAD_MAX 128
 #define PKG_USING_THREAD_POOL
 #define PKG_USING_THREAD_POOL_LATEST_VERSION
+#define PKG_USING_MININI
+#define PKG_USING_MININI_LATEST_VERSION
+#define PKG_USING_EVENT_RECORDER
+#define EVENT_RECORDER_USING_FLASHDB
+#define PKG_USING_EVENT_RECORDER_LATEST_VERSION
 
 /* peripheral libraries and drivers */
+
+/* sensors drivers */
+
+
+/* touch drivers */
 
 
 /* Kendryte SDK */
 
 
 /* AI packages */
+
+
+/* Signal Processing and Control Algorithm Packages */
 
 
 /* miscellaneous packages */
@@ -198,6 +251,8 @@
 
 /* entertainment: terminal games and other interesting software packages */
 
+#define PKG_USING_LIBCSV
+#define PKG_USING_LIBCSV_LATEST_VERSION
 
 /* Arduino libraries */
 
@@ -244,8 +299,9 @@
 /* On-chip Peripheral Drivers */
 
 #define BSP_USING_GPIO
+#define BSP_USING_ON_CHIP_FLASH
 #define BSP_USING_UART
-#define BSP_USING_UART1
+#define BSP_USING_UART3
 #define BSP_USING_UDID
 
 /* Board extended module Drivers */

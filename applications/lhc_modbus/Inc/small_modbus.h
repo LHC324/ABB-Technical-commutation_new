@@ -120,6 +120,7 @@ extern "C"
 #endif
 		// void (*Mod_ReportSeverId)(pModbusHandle);
 		void (*Mod_Error)(pModbusHandle, Lhc_Modbus_State_Code);
+		void (*Mod_Ota)(pModbusHandle);
 #if defined(SMODBUS_USING_MASTER)
 		struct
 		{
