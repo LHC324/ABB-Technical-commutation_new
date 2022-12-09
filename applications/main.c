@@ -20,6 +20,7 @@
 #include "ad9833.h"
 #include "test.h"
 #include "minIni.h"
+#include <at.h>
 #ifdef DBG_TAG
 #undef DBG_TAG
 #define DBG_TAG "main"
@@ -66,6 +67,7 @@ static void sampling_thread_entry(void *parameter);
 static void control_thread_entry(void *parameter);
 static void test_poll_thread_entry(void *parameter);
 static void report_thread_entry(void *parameter);
+// static void at_thread_entry(void *parameter);
 
 #define __init_rt_thread_pools(__name, __handle, __param, __statck_size,    \
                                __prio, __tick, __fun, __sema_state, __sema) \
@@ -82,9 +84,9 @@ static void report_thread_entry(void *parameter);
     }
 /*finsh控制台卡死问题：https://www.cnblogs.com/jzcn/p/16450021.html*/
 static rt_thread_pools_t thread_pools[] = {
-    // __init_rt_thread_pools("md_slave_thread", RT_NULL, RT_NULL, 1024U, 0x0F,
-    //                        10, modbus_slave_thread_entry, using_semaphore, RT_NULL),
-    __init_rt_thread_pools("dwin_thread", RT_NULL, RT_NULL, 1024U, 0x0F,
+    __init_rt_thread_pools("md_slave_thread", RT_NULL, RT_NULL, 1024U, 0x11,
+                           10, modbus_slave_thread_entry, using_semaphore, RT_NULL),
+    __init_rt_thread_pools("dwin_thread", RT_NULL, RT_NULL, 2048U, 0x0F,
                            10, dwin_recive_thread_entry, using_semaphore, RT_NULL),
     __init_rt_thread_pools("adc_trig_thread", RT_NULL, &test_object, 512U, 0x03,
                            10, adc_start_conv_thread_entry, using_semaphore, RT_NULL),
@@ -96,6 +98,8 @@ static rt_thread_pools_t thread_pools[] = {
                            10, test_poll_thread_entry, unusing_semaphore, RT_NULL),
     __init_rt_thread_pools("report_thread", RT_NULL, RT_NULL, 2048U, 0x10,
                            10, report_thread_entry, unusing_semaphore, RT_NULL),
+    // __init_rt_thread_pools("report_thread", RT_NULL, RT_NULL, 2048U, 0x11,
+    //                        10, at_thread_entry, unusing_semaphore, RT_NULL),
 
 };
 
@@ -196,6 +200,7 @@ INIT_BOARD_EXPORT(ota_app_vtor_reconfig);
 
 static void timer1_callback(void *parameter);
 static void test_timer_callback(void *parameter);
+static rt_thread_t modbus_rtu_thread_handle = RT_NULL;
 rt_sem_t adc_semaphore = RT_NULL;      // adc转换完成同步信号量
 rt_sem_t trig_semaphore = RT_NULL;     // 触发adc开始转换同步信号量
 rt_sem_t continue_semaphore = RT_NULL; // 继续同步信号量
@@ -287,7 +292,7 @@ static struct ini_data_t ini_val_group[] = {
     __INIT_INI_VAL("run", "end", u16, 7, 0x09),
     __INIT_INI_VAL("run", "voltage offset", f32, 0.5, 0x0A),
     __INIT_INI_VAL("run", "current offset", f32, 5, 0x0B),
-    __INIT_INI_VAL("run", "file_size", u32, 0, 0x0C),
+    __INIT_INI_VAL("run", "file_size", u32, 137, 0x0C),
 };
 #define INI_VAL_NUM() (sizeof(ini_val_group) / sizeof(ini_val_group[0]))
 /**
@@ -298,7 +303,7 @@ static struct ini_data_t ini_val_group[] = {
 struct ini_data_t *get_target_val_handle(uint16_t index)
 {
     for (struct ini_data_t *pi = ini_val_group;
-         (index < INI_VAL_NUM()) && (pi < ini_val_group + INI_VAL_NUM()); ++pi)
+         (pi < ini_val_group + INI_VAL_NUM()); ++pi) //(index < INI_VAL_NUM()) &&
     {
         if (pi->index == index) // 通过比较index得到目标变量
         {
@@ -365,31 +370,6 @@ static void read_data_from_ini_file(struct ini_data_t *pi,
         LOG_I("[R <- S] section: %s,val: %s,[%s]: %f.", pi->section_name, pi->key_name, p_name, data);
     }
     break;
-
-        // case co_uint8:
-        //     *(uint8_t *)pdata = (uint8_t)ini_getl(pi->section_name, pi->key_name, (long)pi->def_val.u8, INI_FILE_DIR);
-        //     LOG_I("<- section: %s,val: %s,[uint8_t]: %d.", pi->section_name, pi->key_name, *(uint8_t *)pdata);
-        //     break;
-        // case co_int16:
-        //     *(int16_t *)pdata = (int16_t)ini_getl(pi->section_name, pi->key_name, (long)pi->def_val.i16, INI_FILE_DIR);
-        //     LOG_I("<- section: %s,val: %s,[int16_t]: %d.", pi->section_name, pi->key_name, *(int16_t *)pdata);
-        //     break;
-        // case co_uint16:
-        //     *(uint16_t *)pdata = (uint16_t)ini_getl(pi->section_name, pi->key_name, (long)pi->def_val.u16, INI_FILE_DIR);
-        //     LOG_I("<- section: %s,val: %s,[uint16_t]: %d.", pi->section_name, pi->key_name, *(uint16_t *)pdata);
-        //     break;
-        // case co_float:
-        //     *(float *)pdata = ini_getf(pi->section_name, pi->key_name, (float)pi->def_val.f32, INI_FILE_DIR);
-        //     LOG_I("<- section: %s,val: %s,[float]: %f.", pi->section_name, pi->key_name, *(float *)pdata);
-        //     break;
-        // case co_uint32:
-        //     *(uint32_t *)pdata = (uint32_t)ini_getl(pi->section_name, pi->key_name, (long)pi->def_val.u32, INI_FILE_DIR);
-        //     LOG_I("<- section: %s,val: %s,[uint32_t]: %d.", pi->section_name, pi->key_name, *(uint32_t *)pdata);
-        //     break;
-        // case co_long:
-        //     *(long *)pdata = ini_getl(pi->section_name, pi->key_name, pi->def_val.l32, INI_FILE_DIR);
-        //     LOG_I("<- section: %s,val: %s,[long]: %ld.", pi->section_name, pi->key_name, *(long *)pdata);
-        // break;
     default:
         break;
     }
@@ -430,9 +410,17 @@ static void write_data_to_ini_file(struct ini_data_t *pi,
     case co_uint32:
     case co_long:
     case co_ulong:
-        code = ini_putl(pi->section_name, pi->key_name, *(long *)pdata, INI_FILE_DIR);
-        LOG_I("[R -> S] section: %s,val: %s,[%s]: %ld.", pi->section_name, pi->key_name, p_name, *(long *)pdata);
-        break;
+    {
+        uint8_t c_size = BY_DATA_TYPE_GET_SIZE(pv->type);
+        long temp_data = 0;
+        /*解决小内存类型变量，在使用大内存指针时，访问越界，造成的数据错误*/
+        // temp_data = c_size < 2U ? temp_data & 0xFFF0 : c_size < 4U ? temp_data & 0xFFF0
+        //                                                            : temp_data;
+        memcpy(&temp_data, pdata, c_size);
+        code = ini_putl(pi->section_name, pi->key_name, temp_data, INI_FILE_DIR);
+        LOG_I("[R -> S] section: %s,val: %s,[%s]: %ld.", pi->section_name, pi->key_name, p_name, temp_data);
+    }
+    break;
     case co_float:
         code = ini_putf(pi->section_name, pi->key_name, *(float *)pdata, INI_FILE_DIR);
         LOG_I("[R -> S] section: %s,val: %s,[%s]: %d.", pi->section_name, pi->key_name, p_name, *(float *)pdata);
@@ -468,6 +456,9 @@ static void get_system_param(void)
     }
 }
 
+/*启用minIni文件数据写入检查：minIni内部自带检查机制*/
+#define USING_WRITE_PARAM_CHECK 0
+#if (USING_WRITE_PARAM_CHECK)
 /**
  * @brief	检查系统参数的变化
  * @details
@@ -484,6 +475,8 @@ bool check_system_param(struct ini_data_t *pi,
         return result;
 
     union_data_t cur_data;
+    uint8_t c_size = BY_DATA_TYPE_GET_SIZE(pv->type);
+    memset(&cur_data, 0x00, sizeof(cur_data)); // 栈上分配的地址，必须初始化
     comm_val_t c_val = {
         .val = &cur_data.string,
         .type = pv->type,
@@ -508,7 +501,9 @@ bool check_system_param(struct ini_data_t *pi,
     case co_long:
     case co_ulong:
     {
-        long data = *(long *)pv->val;
+        long data = 0;
+        memcpy(&data, pv->val, c_size);
+        // LOG_D("@note: data: %ld, l32: %ld.", data, cur_data.l32);
         if (cur_data.l32 != data)
             result = true;
     }
@@ -526,6 +521,7 @@ bool check_system_param(struct ini_data_t *pi,
 
     return result;
 }
+#endif
 
 /**
  * @brief	存储系统参数
@@ -541,13 +537,134 @@ void set_system_param(comm_val_t *pv, uint16_t index)
     if (NULL == pi || NULL == pv)
         return;
 
+#if (USING_WRITE_PARAM_CHECK)
     if (check_system_param(pi, pv))
+#endif
         write_data_to_ini_file(pi, pv);
+#if (USING_WRITE_PARAM_CHECK)
     else
     {
         LOG_I("@note: The current parameters have not changed.");
     }
+#endif
 }
+
+typedef struct main
+{
+    char *psend;
+    char *precv;
+    // void (*event)(char *);
+
+} at_cmd_t;
+
+/**
+ * @brief	通过at指令退出透传模式
+ * @details
+ * @param	None
+ * @retval  none
+ */
+void at_exit_transparent_mode(char *dev_name)
+{
+    //    char revc_buf[32];
+    // rt_err_t open_result = RT_EOK;
+    at_client_t client = at_client_get(dev_name);
+
+    at_cmd_t at_table[] = {
+        {.psend = "+++", .precv = "a"},
+        {.psend = "a", .precv = "+OK"},
+        // {.psend = "AT+Z\r\n", .precv = "+OK"},
+    };
+
+    if (RT_NULL == client)
+    {
+        LOG_D("@note: at device not found. ^_^");
+        return;
+    }
+
+    /* 创建响应结构体，设置最大支持响应数据长度为 512 字节，响应数据行数无限制，超时时间为 2 秒 */
+    // at_response_t resp = at_create_resp(32, 0, rt_tick_from_millisecond(2000));
+
+    // if (client->parser)
+    //     rt_thread_suspend(client->parser);
+    for (at_cmd_t *pa = at_table;
+         pa < at_table + sizeof(at_table) / sizeof(at_table[0]); ++pa)
+    {
+        at_client_obj_send(client, pa->psend, rt_strlen(pa->psend));
+        /* 发送 AT 命令并接收 AT Server 响应数据，数据及信息存放在 resp 结构体中 */
+        // if (at_exec_cmd(resp, pa->psend) != RT_EOK)
+        // {
+        //     rt_kprintf("at client send commands failed, response error or timeout !\r\n");
+        //     return;
+        // }
+        rt_thread_mdelay(500);
+        // at_client_obj_recv(client, revc_buf, sizeof(revc_buf), 500);
+        if (NULL == strstr(client->recv_line_buf, pa->precv))
+        {
+            rt_kprintf("at read failure. ^_^\r\n");
+            return;
+        }
+        // rt_memset(client->recv_line_buf, 0x00, client->recv_bufsz);
+    }
+    rt_kprintf("@success: at enters configuration mode.\r\n");
+    // if (client->parser)
+    //     rt_thread_resume(client->parser);
+
+    /* 删除响应结构体 */
+    // at_delete_resp(resp);
+
+    // rt_device_t pdev = rt_device_find(dev_name);
+
+    // if (NULL == pdev)
+    // {
+    //     LOG_D("@note: at device not found. ^_^");
+    //     return;
+    // }
+    // /* using DMA mode first */
+    // open_result = rt_device_open(pdev, RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_DMA_RX);
+    // /* using interrupt mode when DMA mode not supported */
+    // if (open_result == -RT_EIO)
+    // {
+    //     open_result = rt_device_open(pdev, RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_INT_RX);
+    // }
+    // if (open_result != RT_EOK)
+    // {
+    //     LOG_D("@note: at device open failed. ^_^");
+    //     return;
+    // }
+
+    //     rt_size_t read_len = 0;
+
+    //     for (at_cmd_t *pa = at_table;
+    //          pa < at_table + sizeof(at_table) / sizeof(at_table[0]); ++pa)
+    //     {
+    //         rt_device_write(pdev, 0, pa->psend, strlen(pa->psend));
+    //         rt_thread_mdelay(500);
+    //         rt_memset(revc_buf, 0x00, sizeof(revc_buf));
+    //         read_len = rt_device_read(pdev, 0, revc_buf, strlen(pa->precv));
+    //         if (read_len > 0)
+    //         {
+    //             rt_kprintf("rx_len: %d\r\n[mcu->at]: %s.\r\n[mcu<-at]: %s.\r\n",
+    //                        read_len, pa->psend, revc_buf);
+    //         }
+    //         if (NULL == strstr(revc_buf, pa->precv))
+    //         {
+    //             rt_kprintf("at read failure. ^_^\r\n");
+    //             return;
+    //         }
+    //     }
+
+    //     rt_kprintf("@success: at enters configuration mode.\r\n");
+    // #define AT_DEVICE_NAME "uart1"
+    //     at_client_init(AT_DEVICE_NAME, 256U);
+    //     // #undef AT_DEVICE_NAME
+}
+
+void at_enter_config(void)
+{
+#define AT_DEVICE_NAME "uart1"
+    at_exit_transparent_mode(AT_DEVICE_NAME);
+}
+MSH_CMD_EXPORT(at_enter_config, AT Client Enter configuration mode.);
 
 /**
  * @brief	rt_thread main线程
@@ -576,6 +693,11 @@ int main(void)
     mount_file_system();
     /*初始化系统参数*/
     get_system_param();
+    extern void test_get_csv_file_cur_line(void);
+    test_get_csv_file_cur_line();
+    // #define AT_DEVICE_NAME "uart1"
+    // at_client_init(AT_DEVICE_NAME, 256U);
+    // #undef AT_DEVICE_NAME
     /*初始化线程池*/
     rt_thread_pools_init(&rt_thread_pool_map);
     /* 创建定时器1  周期定时器 */
@@ -596,6 +718,8 @@ int main(void)
     /* 启动timer1定时器 */
     if (timer != RT_NULL)
         rt_timer_start(timer);
+    // extern UART_HandleTypeDef huart1;
+    // __HAL_UART_ENABLE_IT(&huart1, UART_IT_RXNE);
 
     for (;;)
     {
@@ -632,23 +756,64 @@ void test_timer_callback(void *parameter)
 }
 
 /**
- * @brief	modbus 从机接收线程
+ * @brief	modbus 从机接收回调函数
  * @details
+ * @param	dev 设备句柄
+ * @param   size 当前尺寸
+ * @retval  None
+ */
+static rt_err_t modbus_rtu_rx_ind(rt_device_t dev, rt_size_t size)
+{
+    pModbusHandle pd = Modbus_Object;
+
+    // uartx_irq_recive(pd, Mod);
+    if (pd && pd->Uart.semaphore)
+    {
+        pd->Uart.rx.count = size;
+        rt_sem_release((rt_sem_t)pd->Uart.semaphore);
+    }
+
+    return RT_EOK;
+}
+
+/**
+ * @brief	modbus 从机接收线程
+ * @details rt thread V1和V2串口驱动说明：https://club.rt-thread.org/ask/article/8e1d18464219fae7.html
  * @param	parameter:线程初始参数
  * @retval  None
  */
 void modbus_slave_thread_entry(void *parameter)
 {
     rt_thread_pools_t *p_rt_thread_pool = (rt_thread_pools_t *)parameter;
-    /*初始化modbus接口信号量*/
-    rt_thread_hal_uartx_dma_info_init(p_rt_thread_pool, &Modbus_Object->Uart); // 和finsh线程冲突
+    modbus_rtu_thread_handle = p_rt_thread_pool->thread_handle;
+    pModbusHandle pd = Modbus_Object;
+    rt_device_t p_dev = RT_NULL;
 
+    if (pd)
+    {
+        /*确认目标串口设备存在*/
+        p_dev = rt_device_find(LHC_MODBUS_DEVICE_NAME);
+        if (p_dev)
+        {
+            // 记录当前设备指针if (RT_NULL == pd->dev)
+            pd->dev = p_dev;
+            /*初始化modbus接口信号量*/
+            // rt_thread_hal_uartx_dma_info_init(p_rt_thread_pool, &Modbus_Object->Uart); // 和finsh线程冲突
+            pd->Uart.semaphore = p_rt_thread_pool->semaphore;
+            rt_device_open(p_dev, RT_DEVICE_FLAG_TX_BLOCKING | RT_DEVICE_FLAG_RX_NON_BLOCKING);
+            /*挂接目标接收中断函数*/
+            rt_device_set_rx_indicate(p_dev, modbus_rtu_rx_ind);
+        }
+        else
+            rt_kprintf("@error: Target device [%s] not found.^_^\r\n", LHC_MODBUS_DEVICE_NAME);
+    }
     for (;;)
     {
         /* 永久方式等待信号量，获取到信号量则解析modbus协议*/
         if (p_rt_thread_pool->semaphore &&
             rt_sem_take(p_rt_thread_pool->semaphore, RT_WAITING_FOREVER) == RT_EOK)
         {
+            rt_device_read(p_dev, 0, pd->Uart.rx.pbuf, pd->Uart.rx.count);
             small_modbus_handler(Modbus_Object);
             /*远程升级*/
             LOG_D("small modbus recive a data.");
@@ -807,14 +972,18 @@ void sampling_thread_entry(void *parameter)
             UNUSED(pt);
             vofa_send_data();
 #else
-            /*调度器上锁，上锁后不再切换到其他线程，仅响应中断*/
-            // rt_enter_critical();
-            test_data_handle(pt);
-            /*调度器解锁*/
-            // rt_exit_critical();
-
-            if (continue_semaphore != RT_NULL)
-                release_semaphore(continue_semaphore);
+            if (pt)
+            {
+                /*调度器上锁，上锁后不再切换到其他线程，仅响应中断*/
+                // rt_enter_critical();
+                test_data_handle(pt);
+                /*调度器解锁*/
+                // rt_exit_critical();
+                /*开发者模式下：不再释放continue信号量*/
+                if ((continue_semaphore != RT_NULL) &&
+                    !__GET_FLAG(pt->flag, test_developer_signal))
+                    release_semaphore(continue_semaphore);
+            }
 #endif
         }
     }
@@ -978,37 +1147,39 @@ void report_thread_entry(void *parameter)
     pDwinHandle pw = Dwin_Object;
     ptest_t pt = &test_object;
     // uint8_t out_coil[32U];
+    /*写入小端序，发送大端*/
     uint8_t buf[BUF_SIE] = {
         0x00, 0x00,
         0x00, 0x00,
-        pt->user_freq, 0x00,
-        pt->ac.wave_param.wave_mode, 0x00,
+        0x00, pt->user_freq,
+        0x00, pt->ac.wave_param.wave_mode,
         /*wifi start*/
-        0x00, 0x00,
-        0x00, 0x00,
-        0x02, 0x00,
-        0x01, 0x00,
-        0x01, 0x00,
-        0x01, 0x00,
-        0x00, 0x00,
-        0x00, 0x00,
+        0x00, 0x00, // wifi模块状态
+        0x00, 0x00, // wifi恢复出厂设置按钮
+        0x00, 0x02, // wifi模式
+        0x00, 0x01, // wifi串口波特率
+        0x00, 0x01, // wifi串口数据位
+        0x00, 0x00, // wifi串口停止位
+        0x00, 0x00, // wifi串口校验位
+        0x00, 0x00, // wifi数据导出按钮
         /*wifi end*/
 
+        0x00, 0x00, // 通道校正按钮
+        0x00, 0x00, // 数据保存按钮
+        0x00, 0x00, // 参数保存按钮
+        0x00, 0x00, // 网络时间获取按钮
+        0x00, 0x00, // 屏幕时间下发0
         0x00, 0x00,
         0x00, 0x00,
-        0x00, 0x00,
-        0x00, 0x00,
-        0x00, 0x00,
-        0x00, 0x00,
-        0x00, 0x00,
-        0x00, 0x00,
-        0x00, 0x00,
-        pt->ac.wave_param.fre_sfr, 0x00,
-        pt->ac.wave_param.phase, pt->ac.wave_param.phase >> 8U,
-        pt->ac.wave_param.phase_sfr, 0x00,
-        pt->ac.wave_param.range, 0x00,
-        pt->cur_group.start, 0x00,
-        pt->cur_group.end, 0x000,
+        0x00, 0x00, // 屏幕时间下发3
+        0x00, 0x00, // 空闲地址
+        0x00, 0x00, // 开发者模式按钮
+        0x00, pt->ac.wave_param.fre_sfr,
+        pt->ac.wave_param.phase >> 8U, pt->ac.wave_param.phase,
+        0x00, pt->ac.wave_param.phase_sfr,
+        0x00, pt->ac.wave_param.range,
+        0x00, pt->cur_group.start,
+        0x000, pt->cur_group.end,
         0x00, 0x00
 
     };
@@ -1062,3 +1233,83 @@ void report_thread_entry(void *parameter)
 #undef VAL_FLOAT_NUM
 #undef BUF_SIE
 }
+
+/**
+ * @brief   at指令处理线程
+ * @details
+ * @param	parameter:线程初始参数
+ * @retval  None
+ */
+// void at_thread_entry(void *parameter)
+// {
+
+// }
+
+#ifdef FINSH_USING_MSH
+#include <finsh.h>
+
+int at_send(int argc, char **argv)
+{
+    at_response_t resp = RT_NULL;
+
+    if (argc != 2)
+    {
+        LOG_E("at_cli_send [command]  - AT client send commands to AT server.");
+        return -RT_ERROR;
+    }
+
+    /* 创建响应结构体，设置最大支持响应数据长度为 512 字节，响应数据行数无限制，超时时间为 5 秒 */
+    resp = at_create_resp(512, 0, rt_tick_from_millisecond(5000));
+    if (!resp)
+    {
+        LOG_E("No memory for response structure!");
+        return -RT_ENOMEM;
+    }
+
+    /* 发送 AT 命令并接收 AT Server 响应数据，数据及信息存放在 resp 结构体中 */
+    if (at_exec_cmd(resp, argv[1]) != RT_EOK)
+    {
+        LOG_E("AT client send commands failed, response error or timeout !");
+        return -RT_ERROR;
+    }
+    LOG_I("resp: %s.", resp->buf);
+
+    /* 命令发送成功 */
+    LOG_D("AT Client send commands to AT Server success!");
+
+    /* 删除响应结构体 */
+    at_delete_resp(resp);
+
+    return RT_EOK;
+}
+/* 输出 at_Client_send 函数到 msh 中 */
+MSH_CMD_EXPORT(at_send, AT Client send commands to AT Server and get response data);
+
+/**
+ * @brief  finsh进行控制台还原
+ * @param  pd modbus协议站句柄
+ * @retval None
+ */
+static void re_console(void)
+{
+    rt_err_t ret = RT_EOK;
+    pModbusHandle pd = Modbus_Object;
+    rt_device_t console = pd->old_console; // rt_console_get_device()
+
+    if ((RT_NULL == pd) || (RT_NULL == pd->dev) || (RT_NULL == console))
+        return;
+    ret = rt_device_close(pd->dev);
+    if (RT_EOK == ret)
+    {
+        finsh_set_device(console->parent.name);
+        rt_console_set_device(console->parent.name);
+        ret = rt_device_open(pd->dev, RT_DEVICE_FLAG_TX_BLOCKING | RT_DEVICE_FLAG_RX_NON_BLOCKING);
+        if (RT_EOK == ret)
+            rt_device_set_rx_indicate(pd->dev, modbus_rtu_rx_ind); // 重新设置空当前串口回调函数
+        if (modbus_rtu_thread_handle)
+            ret = rt_thread_resume(modbus_rtu_thread_handle);
+        rt_kprintf("@note: enter modbus_rtu mode.\r\n");
+    }
+}
+MSH_CMD_EXPORT(re_console, finsh console restore.);
+#endif

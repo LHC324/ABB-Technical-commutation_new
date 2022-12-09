@@ -104,6 +104,11 @@ extern "C"
 
 	struct Modbus_HandleTypeDef
 	{
+#if (SMODBUS_USING_RTOS == 2U)
+		/*对于rt thread版本，增加一个设备描述指针*/
+		// char dev_name[32U];
+		rt_device_t dev, old_console;
+#endif
 		Small_Modbus_Type type;
 		void (*Mod_CallBack)(pModbusHandle, Function_Code);
 		void (*Mod_Recive)(void *);

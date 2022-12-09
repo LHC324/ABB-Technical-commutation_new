@@ -25,6 +25,10 @@ extern "C"
 /*small_modbus使用RTOS[0:不使用RTOS;1:Freertos;2:rt_thread]*/
 #define SMODBUS_USING_RTOS 2
 
+// <s>Valid when using rtthread
+//  <i>Device name
+#define LHC_MODBUS_DEVICE_NAME "uart1"
+
 // <o>Set lhc modbus Dynamic Memory allocation mode
 //  <i>Default: 1
 //  <0=> Unused
@@ -55,7 +59,7 @@ extern "C"
 #define SMODBUS_USING_DEBUG 2
 
 /*small_modbus调试输出终端选择:[0:不使用调试终端；1：leeter shell; 2:finish shell]*/
-//#define SMODBUS_USING_SHELL 2
+// #define SMODBUS_USING_SHELL 2
 
 // <o>Set the buffer size of lhc modbus receiving thread
 //  <i>Default: 128 (Unit: byte)
@@ -74,18 +78,18 @@ extern "C"
 #endif
 
 // <o>Set lhc modbus master address
-//  <i>Default: 1 
+//  <i>Default: 1
 //  <0-255>
 /*协议栈参数配置*/
 #define SMALL_MODBUS_MASTER_ADDR 0x01
 
-// <o>Set lhc modbus slave address
-//  <i>Default: 2 
-//  <0-255>
+    // <o>Set lhc modbus slave address
+    //  <i>Default: 2
+    //  <0-255>
 
 #define SMALL_MODBUS_SLAVE_ADDR 0x02
 // <o>Set the number of registers in the lhc modbus register pool
-//  <i>Default: 128 
+//  <i>Default: 128
 //  <0-1024>
 /*寄存器池尺寸*/
 #define SMODBUS_REG_POOL_SIZE 128U

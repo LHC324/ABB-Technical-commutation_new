@@ -129,7 +129,8 @@ extern "C"
         } data;
         struct
         {
-            uint32_t cur_size; // 记录用户当前数据写入尺寸
+            uint32_t csv_line_count; // csv当前写入行数记录
+            uint32_t cur_size;       // 记录用户当前数据写入尺寸
         } file;
         void *pmodbus;
     };

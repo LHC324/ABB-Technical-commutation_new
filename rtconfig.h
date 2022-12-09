@@ -67,7 +67,7 @@
 #define FINSH_THREAD_PRIORITY 20
 #define FINSH_THREAD_STACK_SIZE 4096
 #define FINSH_USING_HISTORY
-#define FINSH_HISTORY_LINES 5
+#define FINSH_HISTORY_LINES 10
 #define FINSH_USING_SYMTAB
 #define FINSH_CMD_SIZE 80
 #define MSH_USING_BUILT_IN_COMMANDS
@@ -88,9 +88,8 @@
 
 #define RT_USING_DEVICE_IPC
 #define RT_USING_SERIAL
-#define RT_USING_SERIAL_V1
+#define RT_USING_SERIAL_V2
 #define RT_SERIAL_USING_DMA
-#define RT_SERIAL_RB_BUFSZ 64
 #define RT_USING_PIN
 #define RT_USING_MTD_NOR
 #define RT_USING_PM
@@ -125,6 +124,14 @@
 
 /* Network */
 
+#define RT_USING_AT
+#define AT_DEBUG
+#define AT_USING_CLIENT
+#define AT_CLIENT_NUM_MAX 1
+#define AT_USING_CLI
+#define AT_PRINT_RAW_CMD
+#define AT_CMD_MAX_LEN 128
+#define AT_SW_VERSION_NUM 0x10301
 
 /* Utilities */
 
@@ -301,7 +308,13 @@
 #define BSP_USING_GPIO
 #define BSP_USING_ON_CHIP_FLASH
 #define BSP_USING_UART
+#define BSP_USING_UART1
+#define BSP_UART1_RX_USING_DMA
+#define BSP_UART1_TX_BUFSIZE 0
+#define BSP_UART1_RX_BUFSIZE 256
 #define BSP_USING_UART3
+#define BSP_UART3_TX_BUFSIZE 0
+#define BSP_UART3_RX_BUFSIZE 256
 #define BSP_USING_UDID
 
 /* Board extended module Drivers */

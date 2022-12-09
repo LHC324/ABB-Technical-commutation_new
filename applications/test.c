@@ -111,7 +111,7 @@ void test_timer_poll(void)
  */
 static enum test_stage get_cur_test_state(ptest_t pt)
 {
-    if (pt == NULL)
+    if (NULL == pt || NULL == pt->pre)
         return test_standby;
 
     /*检测到过流信号*/
@@ -142,10 +142,19 @@ static enum test_stage get_cur_test_state(ptest_t pt)
         __SET_FLAG(pt->flag, test_first_flag);
         if (!__GET_FLAG(pt->flag, test_mode))
         {
+            // pt->cur_group.end = TEST_MAX_NUM; // 自动模式时：开始/结束段不受手动运行
+            relay_group temp_group =
+                {
+                    .start = 1U,
+                    .end = TEST_MAX_NUM,
+                };
+            pt->pre->cur_group = temp_group; // 传递一个临时参数
             return test_auto;
         }
         else
         {
+            pt->pre->cur_group = pt->cur_group;
+            pt->pre->cur_exe_count = pt->cur_group.start - 1U; // 手动模式：存在一个组选择问题
             return test_manual;
         }
     }
@@ -340,8 +349,8 @@ void test_poll(void)
     if (pt->pre)
     {
         pt->pmodbus = pd;
-        pt->pre->coil.p = Modbus_Object->pPools->Coils;                // 挂接操作线圈
-        pt->pre->cur_group = pt->cur_group;                            // 传递组号
+        pt->pre->coil.p = Modbus_Object->pPools->Coils; // 挂接操作线圈
+        // pt->pre->cur_group = pt->cur_group;                            // 传递组号
         pt->pre->timer.p = pt->timer;                                  // 传递软件定时器
         pt->pre->timer.num = sizeof(pt->timer) / sizeof(pt->timer[0]); // 传递软件定时器数量
     }
@@ -363,8 +372,40 @@ void test_poll(void)
 
 #define CSV_FILE_NAME "data.csv"
 #define CSV_TABLE_HEADER "sn,timestamp(s),voltage(v),currnet(mA),v_offset(%),c_offset(%),notes\
-    \n0,1668839363,18.0,120,0.05,0.05,sample\n"
+    \n0,1668839363,18.0,120,0.05,0.05,sample                        \n"
+#define STR_FORMAT "%d,%ld,%f,%f,%f,%f,real\n" // 序号、时间戳、电压、电流、电压偏差率、电流偏差率
 #define CSV_FILE_MAX_SIZE 48 * 1024U
+#define CSV_BUF_SIZE 64
+/*单个文件数据开始回滚最大记录条数*/
+#define CSV_MAX_RECORD ((CSV_FILE_MAX_SIZE - sizeof(CSV_TABLE_HEADER)) / CSV_BUF_SIZE)
+/**
+ * @brief	检查csv文件
+ * @details
+ * @param   pt 测试对象句柄
+ * @param   p_file_info 文件信息指针
+ * @retval  None
+ */
+static int test_check_csv(test_t *pt, struct stat *p_file_info)
+{
+    int ret;
+
+    if (NULL == pt || NULL == p_file_info)
+        return RT_ERROR;
+
+    ret = stat(CSV_FILE_NAME, p_file_info);
+#if (USING_TEST_DEBUG)
+    if (ret == RT_EOK)
+    {
+        TEST_DEBUG_R("\r\n'data.csv' real size: %dByte, count size: %dByte.\n",
+                     p_file_info->st_size, pt->file.cur_size);
+    }
+    else
+        TEST_DEBUG_R("\r\n'data.csv' file not fonud ^_^.\n");
+#endif
+
+    return ret;
+}
+
 /**
  * @brief	测试系统数据存储到csv文件
  * @details
@@ -374,55 +415,53 @@ void test_poll(void)
  */
 static void test_data_save_to_csv(test_t *pt, test_data_t *pdata)
 {
-#define STR_FORMAT "%d,%ld,%f,%f,%f,%f,real\n" // 序号、时间戳、电压、电流、电压偏差率、电流偏差率
     int fd;
     struct timeval tv = {0};
     struct timezone tz = {0};
-    static uint16_t count = 0; // 单次上电持续记录的次数
-    char write_buf[64];
-    // int flags;
-    int ret;
+    char write_buf[CSV_BUF_SIZE];
     struct stat file_info;
 
     if (NULL == pt || NULL == pdata)
         return;
 
-    //     if (access(CSV_FILE_NAME, F_OK)) // 检查目标文件是否存在
-    //     {
-    // #if (USING_TEST_DEBUG)
-    //         TEST_DEBUG_D("@error: The target file 'data. csv' does not exist ^_^.\n");
-    // #endif
-    //         return;
-    //     }
+    fd = open(CSV_FILE_NAME, O_WRONLY | O_APPEND); // 数据以追加方式写入
+    if (test_check_csv(pt, &file_info) != RT_EOK)  // 检查目标文件是否存在
+        return;
 
-    ret = stat(CSV_FILE_NAME, &file_info);
-#if (USING_TEST_DEBUG)
-    if (ret == RT_EOK)
-    {
-        TEST_DEBUG_R("\r\n'data.csv' real size: %dByte, count size: %dByte.\n",
-                     file_info.st_size, pt->file.cur_size);
-    }
-    else
-        TEST_DEBUG_R("\r\n'data.csv' file not fonud ^_^.\n");
-#endif
-
-    if (pt->file.cur_size > CSV_FILE_MAX_SIZE) // 文件已经写满
+    if (++pt->file.csv_line_count > CSV_MAX_RECORD) // 文件记录条数已达最大
     {
         pt->file.cur_size = sizeof(CSV_TABLE_HEADER);
-        ret = lseek(fd, sizeof(CSV_TABLE_HEADER), SEEK_SET);
-        // #if (USING_TEST_DEBUG)
-        //         if (ret > 0)
-        //         {
-        //             TEST_DEBUG_R("'data.csv' file size = %d\n", file_info.st_size);
-        //         }
-        //         else
-        //             TEST_DEBUG_R("@error: 'data.csv' file not fonud ^_^\n");
-        // #endif
+        pt->file.csv_line_count = 0;
     }
     else
-        pt->file.cur_size += sizeof(write_buf);
+    { /*文件尚未发生回滚，意外错误导致的写入位置不同步：直接覆盖*/
+        if (file_info.st_size < CSV_FILE_MAX_SIZE &&
+            pt->file.cur_size != file_info.st_size)
+        {
+            pt->file.cur_size = sizeof(CSV_TABLE_HEADER);
+        }
+    }
 
-    fd = open(CSV_FILE_NAME, O_WRONLY | O_APPEND); // 数据以追加方式写入
+    off_t offset = lseek(fd, pt->file.cur_size, SEEK_SET); // 重新定位文件读写指针
+    if (offset != pt->file.cur_size)
+    {
+#if (USING_TEST_DEBUG)
+        TEST_DEBUG_R("@error: lseek failed, target offset: %ld, actual offset: %ld ^_^.\n",
+                     pt->file.cur_size, offset);
+#endif
+        pt->file.cur_size = sizeof(CSV_TABLE_HEADER);
+        return;
+    }
+    else
+    {
+#if (USING_TEST_DEBUG)
+        TEST_DEBUG_R("@note: lseek success, cur offset: %ld .\n",
+                     offset);
+#endif
+    }
+
+    uint32_t count = pt->file.csv_line_count;
+
     if (fd >= 0)
     {
         gettimeofday(&tv, &tz); // 获取时间
@@ -439,6 +478,17 @@ static void test_data_save_to_csv(test_t *pt, test_data_t *pdata)
             write(fd, write_buf, sizeof(write_buf));
             close(fd);
             // rt_free(write_buf);
+
+            // pt->file.csv_line_count++;
+            pt->file.cur_size += sizeof(write_buf);
+
+            // #define FILE_SIZE_INDEX 0x0C
+            //             extern comm_val_t *get_comm_val(uint16_t index);
+            //             extern void set_system_param(comm_val_t * pv, uint16_t index);
+            //             comm_val_t *pv = get_comm_val(FILE_SIZE_INDEX); /*当前文件尺寸写回ini文件*/
+            //             if (pv)
+            //                 set_system_param(pv, FILE_SIZE_INDEX);
+            // #undef FILE_SIZE_INDEX
         }
 #if (USING_TEST_DEBUG)
         TEST_DEBUG_D("@note:str size: %d,timestamps: %ld,[%d]write done.\n", str_size, (long)tv.tv_sec, count);
@@ -451,8 +501,61 @@ static void test_data_save_to_csv(test_t *pt, test_data_t *pdata)
                      count, rt_get_errno());
 #endif
     }
-    count++;
+    // count++;
+
 #undef STR_FORMAT
+}
+
+/**
+ * @brief	获取当前csv文件的行号
+ * @details
+ * @param   None
+ * @retval  None
+ */
+void test_get_csv_file_cur_line(void)
+{
+    test_t *pt = &test_object;
+    int fd, ret;
+    struct stat file_info;
+    char read_buf[8];
+
+    if (test_check_csv(pt, &file_info) != RT_EOK) // 检查目标文件是否存在
+        return;
+
+    fd = open(CSV_FILE_NAME, O_RDONLY); // 读出文件尾的一行数据| O_APPEND
+
+    if (fd >= 0)
+    {
+        ret = lseek(fd, -CSV_BUF_SIZE, SEEK_END); // 定位到当前文件指针位置
+        if (ret >= 0)
+        {
+#if (USING_TEST_DEBUG)
+            TEST_DEBUG_R("\r\nfile location succeeded.\n");
+#endif
+        }
+        else
+        {
+#if (USING_TEST_DEBUG)
+            TEST_DEBUG_R("failed to jump file location ^_^.\n");
+#endif
+        }
+        ret = read(fd, read_buf, sizeof(read_buf));
+        if (ret == 0)
+        {
+#if (USING_TEST_DEBUG)
+            TEST_DEBUG_R("file end and no content to read ^_^.\n");
+#endif
+        }
+        if (ret > 0)
+        {
+            sscanf(read_buf, "%d", &pt->file.csv_line_count);
+#if (USING_TEST_DEBUG)
+            TEST_DEBUG_R("cur line: %d,read succeede,buf: %s .\n\n",
+                         pt->file.csv_line_count, read_buf);
+#endif
+        }
+        close(fd);
+    }
 }
 
 /**
@@ -494,6 +597,7 @@ void test_data_handle(test_t *pt)
     // float ei0, ev0, ev1;
     float calc_result[] = {0, 0, 0}; // i0、v0、v1
     float sum_of_squares = 0;
+    float voltage = 0;
 
     if (NULL == pt)
         return;
@@ -523,7 +627,12 @@ void test_data_handle(test_t *pt)
                 adc_buf[0][j] &= 0x0000FFFF;
             }
 
-            float voltage = (float)adc_buf[i][j] * 3.3F / 4096.0F; // 替换为校准公式
+            if (!__GET_FLAG(pt->flag, test_developer_signal))
+            {
+                voltage = (float)adc_buf[i][j] * 3.3F / 4096.0F; // 替换为校准公式
+            }
+            else // 兼容开发者模式
+                voltage = (float)adc_buf[i][j];
 #if (USING_TEST_DEBUG)
             TEST_DEBUG_R("%.2f\t", voltage);
             if (((j + 1U) % 8) == 0)
@@ -591,6 +700,23 @@ void test_data_handle(test_t *pt)
     /*site值回传；电压、电流数据写回modbus寄存器池；电压偏差、电流偏差计算*/
     test_data_save(pt, &data);
 #undef USER_DATA_NUMS
+}
+
+/**
+ * @brief 当前记录的文件位置写回
+ * @note  仅在测试完成/失败时写回，主动结束的部分下一次将发生覆盖
+ * @param None
+ * @retval None
+ */
+static void test_write_back_cur_file_size(void)
+{
+#define FILE_SIZE_INDEX 0x0C
+    extern comm_val_t *get_comm_val(uint16_t index);
+    extern void set_system_param(comm_val_t * pv, uint16_t index);
+    comm_val_t *pv = get_comm_val(FILE_SIZE_INDEX); /*当前文件尺寸写回ini文件*/
+    if (pv)
+        set_system_param(pv, FILE_SIZE_INDEX);
+#undef FILE_SIZE_INDEX
 }
 
 /**
@@ -764,6 +890,7 @@ static void test_at_filed(ptest_t pt)
     if (NULL == pt->pre || NULL == pt->pre->coil.p)
         return;
 
+    test_write_back_cur_file_size();
 #if (USING_TEST_DEBUG)
     TEST_DEBUG_D("@note: exe 'test_at_filed'.\n");
 #endif
@@ -788,6 +915,7 @@ static void test_at_finish(ptest_t pt)
     if (NULL == pt->pre || NULL == pt->pre->coil.p)
         return;
 
+    test_write_back_cur_file_size();
 #if (USING_TEST_DEBUG)
     TEST_DEBUG_D("@note: exe 'test_at_finish'.\n");
 #endif
@@ -830,6 +958,39 @@ void creat_csv_file(void)
 MSH_CMD_EXPORT(creat_csv_file, Create a csv format file.);
 
 /**
+ * @brief   设置电源开关
+ * @details
+ * @param   none
+ * @retval  none
+ */
+static void set_power(int argc, char **argv)
+{
+#ifdef COMMM_TITLE
+#undef COMMM_TITLE
+#endif
+#define COMMM_TITLE "Please input'set_power<(0 ~2)[(eg. dc,ac1,ac2)]>'"
+
+    ptest_t pt = &test_object;
+
+    if (argc < 2)
+    {
+        TEST_DEBUG_R("@error: " COMMM_TITLE ".\n");
+        return;
+    }
+    if (argc > 2)
+    {
+        TEST_DEBUG_R("@error: parameter is too long," COMMM_TITLE ".\n");
+        return;
+    }
+
+    relay_power_type re_power = (relay_power_type)atoi(argv[1]);
+    if (pt->pre)
+        pt->pre->cur_power = re_power;
+    TEST_DEBUG_R("@note: cur_power[%#x].\n", pt->pre->cur_power);
+}
+MSH_CMD_EXPORT(set_power, set_power<(0 ~2)>.);
+
+/**
  * @brief   设置一些系统信号
  * @details
  * @param   none
@@ -837,6 +998,9 @@ MSH_CMD_EXPORT(creat_csv_file, Create a csv format file.);
  */
 static void set_flags(int argc, char **argv)
 {
+#ifdef COMMM_TITLE
+#undef COMMM_TITLE
+#endif
 #define COMMM_TITLE "Please input'set_flags <(0~31)|(0/1)>'"
 
     ptest_t pt = &test_object;
@@ -851,13 +1015,13 @@ static void set_flags(int argc, char **argv)
         TEST_DEBUG_R("@error: parameter is too long," COMMM_TITLE ".\n");
         return;
     }
-    uint8_t flag = *argv[1] - '0';
+    uint8_t flag = atoi(argv[1]);
     if (flag > 31)
     {
         TEST_DEBUG_R("@error: unknown flag," COMMM_TITLE ".\n");
         return;
     }
-    uint8_t val = *argv[2] - '0';
+    uint8_t val = atoi(argv[2]);
     if (val > 1)
     {
         TEST_DEBUG_R("@error: value error," COMMM_TITLE ".\n");

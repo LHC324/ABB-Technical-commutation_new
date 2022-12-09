@@ -338,7 +338,7 @@
               <MiscControls></MiscControls>
               <Define>__STDC_LIMIT_MACROS, LFS_CONFIG=lfs_config.h, STM32F103xE, USE_HAL_DRIVER, RT_USING_LIBC, __CLK_TCK=RT_TICK_PER_SECOND, __RTTHREAD__, RT_USING_ARM_LIBC</Define>
               <Undefine></Undefine>
-              <IncludePath>board;rt-thread\components\drivers\include;rt-thread\libcpu\arm\common;rt-thread\components\finsh;packages\libcsv-latest;rt-thread\components\dfs\include;rt-thread\components\drivers\include;libraries\STM32F1xx_HAL\CMSIS\Device\ST\STM32F1xx\Include;packages\CmBacktrace-v1.4.1;applications\lhc_dwin\Inc;packages\thread_pool-latest;rt-thread\components\libc\compilers\common\extension;libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Inc;libraries\HAL_Drivers\config;rt-thread\components\drivers\hwcrypto;rt-thread\components\libc\posix\delay;board\CubeMX_Config\Core\Inc;packages\littlefs-latest;applications;packages\minIni-latest\dev;libraries\HAL_Drivers\CMSIS\Include;libraries\HAL_Drivers\drv_flash;rt-thread\components\drivers\include;rt-thread\components\libc\compilers\common\extension\fcntl\octal;rt-thread\components\drivers\include;rt-thread\components\drivers\include;rt-thread\components\libc\posix\ipc;rt-thread\components\libc\posix\io\stdio;.;rt-thread\components\libc\posix\pthreads;rt-thread\components\drivers\include;rt-thread\components\fal\inc;rt-thread\include;packages\ota_downloader-latest;rt-thread\components\libc\compilers\common\include;rt-thread\libcpu\arm\cortex-m3;rt-thread\components\utilities\ymodem;applications;libraries\HAL_Drivers;packages\event_recorder-latest;applications\lhc_modbus\Inc;rt-thread\components\libc\posix\io\poll;packages\FlashDB-v1.1.2\inc</IncludePath>
+              <IncludePath>board;rt-thread\components\drivers\include;rt-thread\libcpu\arm\common;rt-thread\components\finsh;packages\libcsv-latest;rt-thread\components\dfs\include;rt-thread\components\drivers\include;libraries\STM32F1xx_HAL\CMSIS\Device\ST\STM32F1xx\Include;applications\lhc_dwin\Inc;packages\CmBacktrace-v1.4.1;packages\thread_pool-latest;rt-thread\components\libc\compilers\common\extension;libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Inc;libraries\HAL_Drivers\config;rt-thread\components\net\at\include;rt-thread\components\libc\posix\delay;board\CubeMX_Config\Core\Inc;packages\littlefs-latest;applications;packages\minIni-latest\dev;libraries\HAL_Drivers\CMSIS\Include;libraries\HAL_Drivers\drv_flash;rt-thread\components\drivers\include;rt-thread\components\libc\compilers\common\extension\fcntl\octal;rt-thread\components\drivers\include;rt-thread\components\drivers\include;rt-thread\components\libc\posix\ipc;rt-thread\components\libc\posix\io\stdio;.;rt-thread\components\libc\posix\pthreads;rt-thread\components\drivers\include;rt-thread\components\fal\inc;rt-thread\include;packages\ota_downloader-latest;rt-thread\components\drivers\hwcrypto;rt-thread\components\libc\compilers\common\include;rt-thread\libcpu\arm\cortex-m3;rt-thread\components\utilities\ymodem;applications;libraries\HAL_Drivers;packages\event_recorder-latest;applications\lhc_modbus\Inc;rt-thread\components\libc\posix\io\poll;packages\FlashDB-v1.1.2\inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -383,9 +383,29 @@
           <GroupName>Applications</GroupName>
           <Files>
             <File>
-              <FileName>stm32_irq.c</FileName>
+              <FileName>small_modbus.c</FileName>
               <FileType>1</FileType>
-              <FilePath>applications\stm32_irq.c</FilePath>
+              <FilePath>applications\lhc_modbus\Src\small_modbus.c</FilePath>
+            </File>
+            <File>
+              <FileName>dwin_port.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\lhc_dwin\Src\dwin_port.c</FilePath>
+            </File>
+            <File>
+              <FileName>relay.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\relay.c</FilePath>
+            </File>
+            <File>
+              <FileName>io_signal.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\io_signal.c</FilePath>
+            </File>
+            <File>
+              <FileName>main.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\main.c</FilePath>
             </File>
             <File>
               <FileName>ad9833function.c</FileName>
@@ -393,9 +413,24 @@
               <FilePath>applications\ad9833function.c</FilePath>
             </File>
             <File>
-              <FileName>relay.c</FileName>
+              <FileName>dwin.c</FileName>
               <FileType>1</FileType>
-              <FilePath>applications\relay.c</FilePath>
+              <FilePath>applications\lhc_dwin\Src\dwin.c</FilePath>
+            </File>
+            <File>
+              <FileName>tool.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\lhc_dwin\Src\tool.c</FilePath>
+            </File>
+            <File>
+              <FileName>stm32_irq.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\stm32_irq.c</FilePath>
+            </File>
+            <File>
+              <FileName>ad9833.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>applications\ad9833.c</FilePath>
             </File>
             <File>
               <FileName>small_modbus_port.c</FileName>
@@ -407,40 +442,25 @@
               <FileType>1</FileType>
               <FilePath>applications\test.c</FilePath>
             </File>
+          </Files>
+        </Group>
+        <Group>
+          <GroupName>AT</GroupName>
+          <Files>
             <File>
-              <FileName>tool.c</FileName>
+              <FileName>at_utils.c</FileName>
               <FileType>1</FileType>
-              <FilePath>applications\lhc_dwin\Src\tool.c</FilePath>
+              <FilePath>rt-thread\components\net\at\src\at_utils.c</FilePath>
             </File>
             <File>
-              <FileName>main.c</FileName>
+              <FileName>at_client.c</FileName>
               <FileType>1</FileType>
-              <FilePath>applications\main.c</FilePath>
+              <FilePath>rt-thread\components\net\at\src\at_client.c</FilePath>
             </File>
             <File>
-              <FileName>ad9833.c</FileName>
+              <FileName>at_cli.c</FileName>
               <FileType>1</FileType>
-              <FilePath>applications\ad9833.c</FilePath>
-            </File>
-            <File>
-              <FileName>dwin.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\lhc_dwin\Src\dwin.c</FilePath>
-            </File>
-            <File>
-              <FileName>dwin_port.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\lhc_dwin\Src\dwin_port.c</FilePath>
-            </File>
-            <File>
-              <FileName>io_signal.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\io_signal.c</FilePath>
-            </File>
-            <File>
-              <FileName>small_modbus.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>applications\lhc_modbus\Src\small_modbus.c</FilePath>
+              <FilePath>rt-thread\components\net\at\src\at_cli.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -448,9 +468,9 @@
           <GroupName>cm_backtrace</GroupName>
           <Files>
             <File>
-              <FileName>cmb_flash_log.c</FileName>
+              <FileName>cmb_port.c</FileName>
               <FileType>1</FileType>
-              <FilePath>packages\CmBacktrace-v1.4.1\cmb_flash_log.c</FilePath>
+              <FilePath>packages\CmBacktrace-v1.4.1\cmb_port.c</FilePath>
             </File>
             <File>
               <FileName>cm_backtrace.c</FileName>
@@ -458,9 +478,9 @@
               <FilePath>packages\CmBacktrace-v1.4.1\cm_backtrace.c</FilePath>
             </File>
             <File>
-              <FileName>cmb_port.c</FileName>
+              <FileName>cmb_flash_log.c</FileName>
               <FileType>1</FileType>
-              <FilePath>packages\CmBacktrace-v1.4.1\cmb_port.c</FilePath>
+              <FilePath>packages\CmBacktrace-v1.4.1\cmb_flash_log.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -613,9 +633,9 @@
               <FilePath>rt-thread\components\drivers\rtc\soft_rtc.c</FilePath>
             </File>
             <File>
-              <FileName>serial.c</FileName>
+              <FileName>serial_v2.c</FileName>
               <FileType>1</FileType>
-              <FilePath>rt-thread\components\drivers\serial\serial.c</FilePath>
+              <FilePath>rt-thread\components\drivers\serial\serial_v2.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -663,9 +683,9 @@
               <FilePath>libraries\HAL_Drivers\drv_gpio.c</FilePath>
             </File>
             <File>
-              <FileName>drv_usart.c</FileName>
+              <FileName>drv_usart_v2.c</FileName>
               <FileType>1</FileType>
-              <FilePath>libraries\HAL_Drivers\drv_usart.c</FilePath>
+              <FilePath>libraries\HAL_Drivers\drv_usart_v2.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -673,25 +693,20 @@
           <GroupName>event_recorder</GroupName>
           <Files>
             <File>
-              <FileName>event_recorder.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\event_recorder-latest\event_recorder.c</FilePath>
-            </File>
-            <File>
               <FileName>event_recorder_tc.c</FileName>
               <FileType>1</FileType>
               <FilePath>packages\event_recorder-latest\event_recorder_tc.c</FilePath>
+            </File>
+            <File>
+              <FileName>event_recorder.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\event_recorder-latest\event_recorder.c</FilePath>
             </File>
           </Files>
         </Group>
         <Group>
           <GroupName>Fal</GroupName>
           <Files>
-            <File>
-              <FileName>fal_flash.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>rt-thread\components\fal\src\fal_flash.c</FilePath>
-            </File>
             <File>
               <FileName>fal_rtt.c</FileName>
               <FileType>1</FileType>
@@ -706,6 +721,11 @@
               <FileName>fal_partition.c</FileName>
               <FileType>1</FileType>
               <FilePath>rt-thread\components\fal\src\fal_partition.c</FilePath>
+            </File>
+            <File>
+              <FileName>fal_flash.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>rt-thread\components\fal\src\fal_flash.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -768,11 +788,6 @@
           <GroupName>FlashDB</GroupName>
           <Files>
             <File>
-              <FileName>fdb_file.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\FlashDB-v1.1.2\src\fdb_file.c</FilePath>
-            </File>
-            <File>
               <FileName>fdb_utils.c</FileName>
               <FileType>1</FileType>
               <FilePath>packages\FlashDB-v1.1.2\src\fdb_utils.c</FilePath>
@@ -783,9 +798,9 @@
               <FilePath>packages\FlashDB-v1.1.2\src\fdb_kvdb.c</FilePath>
             </File>
             <File>
-              <FileName>fdb_tsdb.c</FileName>
+              <FileName>fdb_file.c</FileName>
               <FileType>1</FileType>
-              <FilePath>packages\FlashDB-v1.1.2\src\fdb_tsdb.c</FilePath>
+              <FilePath>packages\FlashDB-v1.1.2\src\fdb_file.c</FilePath>
             </File>
             <File>
               <FileName>fdb_cmd.c</FileName>
@@ -796,6 +811,11 @@
               <FileName>fdb.c</FileName>
               <FileType>1</FileType>
               <FilePath>packages\FlashDB-v1.1.2\src\fdb.c</FilePath>
+            </File>
+            <File>
+              <FileName>fdb_tsdb.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\FlashDB-v1.1.2\src\fdb_tsdb.c</FilePath>
             </File>
           </Files>
         </Group>
@@ -1013,14 +1033,9 @@
           <GroupName>littlefs</GroupName>
           <Files>
             <File>
-              <FileName>dfs_lfs.c</FileName>
+              <FileName>lfs.c</FileName>
               <FileType>1</FileType>
-              <FilePath>packages\littlefs-latest\dfs_lfs.c</FilePath>
-            </File>
-            <File>
-              <FileName>lfs_util.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>packages\littlefs-latest\lfs_util.c</FilePath>
+              <FilePath>packages\littlefs-latest\lfs.c</FilePath>
             </File>
             <File>
               <FileName>lfs_crc.c</FileName>
@@ -1028,9 +1043,14 @@
               <FilePath>packages\littlefs-latest\lfs_crc.c</FilePath>
             </File>
             <File>
-              <FileName>lfs.c</FileName>
+              <FileName>lfs_util.c</FileName>
               <FileType>1</FileType>
-              <FilePath>packages\littlefs-latest\lfs.c</FilePath>
+              <FilePath>packages\littlefs-latest\lfs_util.c</FilePath>
+            </File>
+            <File>
+              <FileName>dfs_lfs.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>packages\littlefs-latest\dfs_lfs.c</FilePath>
             </File>
           </Files>
         </Group>

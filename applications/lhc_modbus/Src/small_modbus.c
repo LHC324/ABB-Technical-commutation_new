@@ -251,25 +251,30 @@ static void Modbus_Poll(pModbusHandle pd)
     /*检查是否进入OTA升级*/
     if (lhc_check_is_ota(pd))
     {
+#if (SMODBUS_USING_DEBUG)
+        SMODBUS_DEBUG_R("\r\n@success: exit modbus mode.");
+#endif
         if (pd->Mod_Ota)
             pd->Mod_Ota(pd);
+        return;
     }
     /*可以利用功能码和数据长度预测帧长度：可解析粘包数据*/
     Lhc_Modbus_State_Code lhc_state = Modbus_Recive_Check(pd);
     if (lhc_state != lhc_mod_ok)
     {
+#if (SMODBUS_USING_DEBUG)
+        SMODBUS_DEBUG_R("modbus_rx_buf[%d]:", smd_rx_count(pd));
+        for (uint8_t i = 0; i < smd_rx_count(pd); i++)
+        {
+            SMODBUS_DEBUG_R("%02X ", smd_rx_buf[i]);
+        }
+        SMODBUS_DEBUG_R("\r\n\r\n");
+#endif
         if (pd->Mod_Error)
             pd->Mod_Error(pd, lhc_state);
         return;
     }
-#if (SMODBUS_USING_DEBUG)
-    SMODBUS_DEBUG_D("\r\nModbus_Buf[%d]:", smd_rx_count(pd));
-    for (uint8_t i = 0; i < smd_rx_count(pd); i++)
-    {
-        SMODBUS_DEBUG_D("%02X ", smd_rx_buf[i]);
-    }
-    SMODBUS_DEBUG_D("\r\n\r\n");
-#endif
+
     pSmallModbus_Operate pFunc_Group[] = {NULL, NULL, NULL, NULL};
     pSmallModbus_Operate *pOpt = pFunc_Group;
 #define Using_Opt(__pd, __pOpt, __id)       \
@@ -414,12 +419,11 @@ static bool Modbus_Operatex(pModbusHandle pd, Regsiter_Type reg_type, Regsiter_O
             pDest = Get_RegAddr(pd, reg_type, addr), pSou = pdata;
         }
 #endif
-        if (memcpy(pDest, pSou, len))
-            // for (uint8_t *p = pDest; p < pDest + len;)
-            // {
-            //     *p++ = *pSou++;
-            // }
-            ret = true;
+        if (pDest && pSou && len) // 防止拷贝空指针
+        {
+            if (memcpy(pDest, pSou, len))
+                ret = true;
+        }
         // __DSB();
         // __DMB();
     }

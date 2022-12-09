@@ -172,11 +172,13 @@ int rt_dwin_init(void)
         .recive_finish_flag = false,
 #endif
         .tx = {
+            .wmode = uart_using_dma,
             .size = DWIN_TX_BUF_SIZE,
             .count = 0,
             .pbuf = NULL,
         },
         .rx = {
+            .wmode = uart_using_dma,
             .size = DWIN_RX_BUF_SIZE,
             .count = 0,
             .pbuf = NULL,
@@ -261,18 +263,30 @@ static void dwin_send(pDwinHandle pd)
     dwin_tx_count(pd) += sizeof(crc16);
 #endif
 
-#if (DWIN_USING_DMA)
-    HAL_UART_Transmit_DMA((UART_HandleTypeDef *)pd->Uart.huart, dwin_tx_buf, dwin_tx_count(pd));
-    /*https://blog.csdn.net/mickey35/article/details/80186124*/
-    /*https://blog.csdn.net/qq_40452910/article/details/80022619*/
-    while (__HAL_UART_GET_FLAG((UART_HandleTypeDef *)pd->Uart.huart, UART_FLAG_TC) == RESET)
+    switch (pd->Uart.tx.wmode)
     {
-        if (pd->Dw_Delay)
-            pd->Dw_Delay(1);
+    case uart_using_it:
+    {
+        HAL_UART_Transmit((UART_HandleTypeDef *)pd->Uart.huart, dwin_tx_buf, dwin_tx_count(pd), 0xffff);
     }
-#else
-    HAL_UART_Transmit((UART_HandleTypeDef *)pd->Uart.huart, dwin_tx_buf, dwin_tx_count, 0xffff);
+    break;
+#if (DWIN_USING_DMA)
+    case uart_using_dma:
+    {
+        HAL_UART_Transmit_DMA((UART_HandleTypeDef *)pd->Uart.huart, dwin_tx_buf, dwin_tx_count(pd));
+        /*https://blog.csdn.net/mickey35/article/details/80186124*/
+        /*https://blog.csdn.net/qq_40452910/article/details/80022619*/
+        while (__HAL_UART_GET_FLAG((UART_HandleTypeDef *)pd->Uart.huart, UART_FLAG_TC) == RESET)
+        {
+            if (pd->Dw_Delay)
+                pd->Dw_Delay(1);
+        }
+    }
+    break;
 #endif
+    default:
+        break;
+    }
 }
 
 /**
@@ -496,77 +510,6 @@ static dwin_result dwin_data_type_parser(dwin_val_glue_t *pt,
     if (ptr && c_size < co_type_max)
         memcpy(pc->val, ptr, c_size);
 
-    //     switch (pt->pval->type)
-    //     {
-    //     case co_uint8:
-    //         *(uint8_t *)val = (uint8_t)Get_Dwin_Data(pdata, 0, len) / ratio;
-    //         // data.data.uc8 = *(uint8_t *)pt->val;
-    //         // data.size = sizeof(uint8_t);
-    // #if (DWIN_USING_DEBUG)
-    //         DWIN_DEBUG("note: [uint8_t] data: %u.\r\n", *(uint8_t *)val);
-    // #endif
-    //         break;
-    //     case co_int8:
-    //         *(int8_t *)val = (int8_t)Get_Dwin_Data(pdata, 0, len) / ratio;
-    //         // data.data.c8 = *(int8_t *)pt->val;
-    //         // data.size = sizeof(int8_t);
-    // #if (DWIN_USING_DEBUG)
-    //         DWIN_DEBUG("note: [int8_t] data: %d.\r\n", *(int8_t *)val);
-    // #endif
-    //         break;
-    //     case co_uint16:
-    //         *(uint16_t *)val = (uint16_t)Get_Dwin_Data(pdata, 0, len) / ratio;
-    //         // data.data.us16 = *(uint16_t *)val;
-    //         // data.size = sizeof(uint16_t);
-    // #if (DWIN_USING_DEBUG)
-    //         DWIN_DEBUG("note: [uint16_t] data: %u.\r\n", *(uint16_t *)val);
-    // #endif
-    //         break;
-    //     case co_int16:
-    //         *(int16_t *)val = (int16_t)Get_Dwin_Data(pdata, 0, len) / ratio;
-    //         // data.data.s16 = *(int16_t *)val;
-    //         // data.size = sizeof(int16_t);
-    // #if (DWIN_USING_DEBUG)
-    //         DWIN_DEBUG("note: [int16_t] data: %d.\r\n", *(int16_t *)val);
-    // #endif
-    //         break;
-    //     case co_uint32:
-    //         *(uint32_t *)val = (uint32_t)Get_Dwin_Data(pdata, 0, len) / ratio;
-    //         // data.data.ui32 = *(int32_t *)val;
-    //         // data.size = sizeof(uint32_t);
-    // #if (DWIN_USING_DEBUG)
-    //         DWIN_DEBUG("note: [uint32_t] data: %u.\r\n", *(uint32_t *)val);
-    // #endif
-    //         break;
-    //     case co_int32:
-    //         *(int32_t *)val = (int32_t)Get_Dwin_Data(pdata, 0, len) / ratio;
-    //         // data.data.i32 = *(int32_t *)val;
-    //         // data.size = sizeof(int32_t);
-    // #if (DWIN_USING_DEBUG)
-    //         DWIN_DEBUG("note: [int32_t] data: %d.\r\n", *(int32_t *)val);
-    // #endif
-    //         break;
-    //     case co_float:
-    //         *(float *)val = (float)Get_Dwin_Data(pdata, 0, len) / ratio;
-    //         // data.data.f32 = *(float *)val;
-    //         // data.size = sizeof(float);
-    // #if (DWIN_USING_DEBUG)
-    //         DWIN_DEBUG("note: [float] data: %f.\r\n", *(float *)val);
-    // #endif
-    //         break;
-    //     case co_long:
-    //         *(long *)val = (long)Get_Dwin_Data(pdata, 0, len) / ratio;
-    //         // data.data.l32 = *(long *)val;
-    //         // data.size = sizeof(long);
-    // #if (DWIN_USING_DEBUG)
-    //         DWIN_DEBUG("note: [long] data: %ld.\r\n", *(long *)val);
-    // #endif
-    //         break;
-    //     default:
-    //         break;
-    //     }
-    // data.result = dwin_ok;
-
     return result;
 }
 
@@ -704,17 +647,6 @@ static void dwin_save_param(pDwinHandle pd,
     if (NULL == pd || NULL == pv)
         return;
 
-    // extern struct ini_data_t *get_target_val_handle(comm_val_t * pc);
-
-    // struct ini_data_t *pi = get_target_val_handle(pc);
-
-    //     if (NULL == pi)
-    //     {
-    // #if (DWIN_USING_DEBUG)
-    //         DWIN_DEBUG("@error: target parameter not found in 'config.ini'.\r\n");
-    // #endif
-    //         return;
-    //     }
     extern void set_system_param(comm_val_t * pv, uint16_t index);
     set_system_param(pv, index);
 }
@@ -771,7 +703,8 @@ static void dwin_data_enrty(pDwinHandle pd,
         }
         else
             psite = (uint8_t *)&data.data.ui32;
-        endian_swap(psite, 0, data.size);
+        if (psite)
+            endian_swap(psite, 0, data.size);
     }
     // else
     //     psite = (uint8_t *)&data.data.uc8;

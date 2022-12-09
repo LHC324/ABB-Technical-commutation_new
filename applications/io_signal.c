@@ -642,7 +642,7 @@ static void set_do(int argc, char **argv)
     }
 
     uint8_t pin = (uint8_t)atoi(argv[1]);
-    uint8_t state = *argv[2] - '0';
+    uint8_t state = (uint8_t)atoi(argv[2]);
 
     if (pin >= SIGNAL_IO_DO_MAX)
     {

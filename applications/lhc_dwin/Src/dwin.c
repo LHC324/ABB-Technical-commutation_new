@@ -224,10 +224,10 @@ static dwin_result Dwin_Recive_Check(pDwinHandle pd)
 		DWIN_DEBUG("@error:Protocol frame header error.\r\n");
 #endif
 #if (!DWIN_SEE_RX_BUFF)
-		DWIN_DEBUG("\r\ndwin_rx_buf[%d]:", dwin_rx_count(pd));
+		DWIN_DEBUG_R("dwin_rx_buf[%d]:", dwin_rx_count(pd));
 		for (uint8_t i = 0; i < dwin_rx_count(pd); i++)
 		{
-			DWIN_DEBUG_R("%#X ", dwin_rx_buf[i]);
+			DWIN_DEBUG_R("%02X ", dwin_rx_buf[i]);
 		}
 		DWIN_DEBUG_R("\r\n\r\n");
 #endif

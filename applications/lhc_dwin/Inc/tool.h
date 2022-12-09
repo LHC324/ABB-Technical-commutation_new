@@ -261,8 +261,16 @@ extern float sidefilter(SideParm *side, float input);
         _func event;
     } Event_Map;
 #define _dwin_func _func
+
+    typedef enum
+    {
+        uart_using_it,
+        uart_using_dma,
+        uart_none_mode = 0xFF,
+    } uart_wmode;
     typedef struct
     {
+        uart_wmode wmode;
         unsigned char *pbuf;
         unsigned int size, count;
     } Uart_Data_HandleTypeDef __attribute__((aligned(4)));
