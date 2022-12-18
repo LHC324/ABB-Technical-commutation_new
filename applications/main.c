@@ -67,7 +67,7 @@ static void sampling_thread_entry(void *parameter);
 static void control_thread_entry(void *parameter);
 static void test_poll_thread_entry(void *parameter);
 static void report_thread_entry(void *parameter);
-// static void at_thread_entry(void *parameter);
+static void at_fsm_thread_entry(void *parameter);
 
 #define __init_rt_thread_pools(__name, __handle, __param, __statck_size,    \
                                __prio, __tick, __fun, __sema_state, __sema) \
@@ -98,8 +98,8 @@ static rt_thread_pools_t thread_pools[] = {
                            10, test_poll_thread_entry, unusing_semaphore, RT_NULL),
     __init_rt_thread_pools("report_thread", RT_NULL, RT_NULL, 2048U, 0x10,
                            10, report_thread_entry, unusing_semaphore, RT_NULL),
-    // __init_rt_thread_pools("report_thread", RT_NULL, RT_NULL, 2048U, 0x11,
-    //                        10, at_thread_entry, unusing_semaphore, RT_NULL),
+    __init_rt_thread_pools("at_fsm_thread", RT_NULL, &test_object, 2048U, 0x12,
+                           10, at_fsm_thread_entry, unusing_semaphore, RT_NULL),
 
 };
 
@@ -200,27 +200,12 @@ INIT_BOARD_EXPORT(ota_app_vtor_reconfig);
 
 static void timer1_callback(void *parameter);
 static void test_timer_callback(void *parameter);
-static rt_thread_t modbus_rtu_thread_handle = RT_NULL;
+static void see_sys_info(void);
+// static rt_thread_t modbus_rtu_thread_handle = RT_NULL;
 rt_sem_t adc_semaphore = RT_NULL;      // adc转换完成同步信号量
 rt_sem_t trig_semaphore = RT_NULL;     // 触发adc开始转换同步信号量
 rt_sem_t continue_semaphore = RT_NULL; // 继续同步信号量
-
-/**
- * @brief   查看系统信息
- * @details
- * @param	None
- * @retval  None
- */
-static void see_sys_info(void)
-{
-#define CURRENT_HARDWARE_VERSION "1.0.0"
-#define CURRENT_SOFT_VERSION "1.0.5"
-    rt_kprintf("@note:Current Hardware version: %s , software version: %s.\n",
-               CURRENT_HARDWARE_VERSION, CURRENT_SOFT_VERSION);
-#undef CURRENT_HARDWARE_VERSION
-#undef CURRENT_SOFT_VERSION
-}
-MSH_CMD_EXPORT(see_sys_info, View system information.);
+// rt_sem_t at_stop_semaphore = RT_NULL;  // 停止at解析线程信号量
 
 /**
  * @brief	挂载文件系统到rt_thread
@@ -265,28 +250,15 @@ void mount_file_system(void)
 #undef FS_PARTITION_NAME
 }
 
-// extern comm_val_t struct_val_table[13];
 extern comm_val_t *get_comm_val(uint16_t index);
 
 static struct ini_data_t ini_val_group[] = {
-
-    // __INIT_INI_UINT32_VAL("run", "flag", 0, &test_object.flag, test_uint32),
-    // __INIT_INI_FLOAT_VAL("run", "voltage offset", 0.5, &test_object.comm_param.voltage_offset, test_float),
-    // __INIT_INI_FLOAT_VAL("run", "current offset", 5, &test_object.comm_param.current_offset, test_float),
-    // __INIT_INI_UINT16_VAL("run", "start", 1, &test_object.cur_group.start, test_uint16),
-    // __INIT_INI_UINT16_VAL("run", "end", 7, &test_object.cur_group.end, test_uint16),
-    // __INIT_INI_UINT16_VAL("ad9833", "frequency register", 0, &test_object.ac.wave_param.fre_sfr, test_uint16),
-    // __INIT_INI_UINT16_VAL("ad9833", "phase", 0, &test_object.ac.wave_param.phase, test_uint16),
-    // __INIT_INI_UINT16_VAL("ad9833", "phase register", 0, &test_object.ac.wave_param.phase_sfr, test_uint16),
-    // __INIT_INI_UINT16_VAL("ad9833", "range", 50, &test_object.ac.wave_param.range, test_uint16),
-    // __INIT_INI_UINT16_VAL("ad9833", "wave", 0, &test_object.ac.wave_param.wave_mode, test_uint16),
-
     __INIT_INI_VAL("run", "flag", u32, 0, 0x00),
     __INIT_INI_VAL("run", "freq_mode", u16, 0, 0x01),
     __INIT_INI_VAL("ad9833", "frequency register", u16, 0, 0x03),
     __INIT_INI_VAL("ad9833", "phase", u16, 0, 0x04),
     __INIT_INI_VAL("ad9833", "phase register", u16, 0, 0x05),
-    __INIT_INI_VAL("ad9833", "range", u16, 50, 0x06),
+    __INIT_INI_VAL("ad9833", "range", u16, 155, 0x06),
     __INIT_INI_VAL("ad9833", "wave", u16, 0, 0x07),
     __INIT_INI_VAL("run", "start", u16, 1, 0x08),
     __INIT_INI_VAL("run", "end", u16, 7, 0x09),
@@ -549,123 +521,6 @@ void set_system_param(comm_val_t *pv, uint16_t index)
 #endif
 }
 
-typedef struct main
-{
-    char *psend;
-    char *precv;
-    // void (*event)(char *);
-
-} at_cmd_t;
-
-/**
- * @brief	通过at指令退出透传模式
- * @details
- * @param	None
- * @retval  none
- */
-void at_exit_transparent_mode(char *dev_name)
-{
-    //    char revc_buf[32];
-    // rt_err_t open_result = RT_EOK;
-    at_client_t client = at_client_get(dev_name);
-
-    at_cmd_t at_table[] = {
-        {.psend = "+++", .precv = "a"},
-        {.psend = "a", .precv = "+OK"},
-        // {.psend = "AT+Z\r\n", .precv = "+OK"},
-    };
-
-    if (RT_NULL == client)
-    {
-        LOG_D("@note: at device not found. ^_^");
-        return;
-    }
-
-    /* 创建响应结构体，设置最大支持响应数据长度为 512 字节，响应数据行数无限制，超时时间为 2 秒 */
-    // at_response_t resp = at_create_resp(32, 0, rt_tick_from_millisecond(2000));
-
-    // if (client->parser)
-    //     rt_thread_suspend(client->parser);
-    for (at_cmd_t *pa = at_table;
-         pa < at_table + sizeof(at_table) / sizeof(at_table[0]); ++pa)
-    {
-        at_client_obj_send(client, pa->psend, rt_strlen(pa->psend));
-        /* 发送 AT 命令并接收 AT Server 响应数据，数据及信息存放在 resp 结构体中 */
-        // if (at_exec_cmd(resp, pa->psend) != RT_EOK)
-        // {
-        //     rt_kprintf("at client send commands failed, response error or timeout !\r\n");
-        //     return;
-        // }
-        rt_thread_mdelay(500);
-        // at_client_obj_recv(client, revc_buf, sizeof(revc_buf), 500);
-        if (NULL == strstr(client->recv_line_buf, pa->precv))
-        {
-            rt_kprintf("at read failure. ^_^\r\n");
-            return;
-        }
-        // rt_memset(client->recv_line_buf, 0x00, client->recv_bufsz);
-    }
-    rt_kprintf("@success: at enters configuration mode.\r\n");
-    // if (client->parser)
-    //     rt_thread_resume(client->parser);
-
-    /* 删除响应结构体 */
-    // at_delete_resp(resp);
-
-    // rt_device_t pdev = rt_device_find(dev_name);
-
-    // if (NULL == pdev)
-    // {
-    //     LOG_D("@note: at device not found. ^_^");
-    //     return;
-    // }
-    // /* using DMA mode first */
-    // open_result = rt_device_open(pdev, RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_DMA_RX);
-    // /* using interrupt mode when DMA mode not supported */
-    // if (open_result == -RT_EIO)
-    // {
-    //     open_result = rt_device_open(pdev, RT_DEVICE_OFLAG_RDWR | RT_DEVICE_FLAG_INT_RX);
-    // }
-    // if (open_result != RT_EOK)
-    // {
-    //     LOG_D("@note: at device open failed. ^_^");
-    //     return;
-    // }
-
-    //     rt_size_t read_len = 0;
-
-    //     for (at_cmd_t *pa = at_table;
-    //          pa < at_table + sizeof(at_table) / sizeof(at_table[0]); ++pa)
-    //     {
-    //         rt_device_write(pdev, 0, pa->psend, strlen(pa->psend));
-    //         rt_thread_mdelay(500);
-    //         rt_memset(revc_buf, 0x00, sizeof(revc_buf));
-    //         read_len = rt_device_read(pdev, 0, revc_buf, strlen(pa->precv));
-    //         if (read_len > 0)
-    //         {
-    //             rt_kprintf("rx_len: %d\r\n[mcu->at]: %s.\r\n[mcu<-at]: %s.\r\n",
-    //                        read_len, pa->psend, revc_buf);
-    //         }
-    //         if (NULL == strstr(revc_buf, pa->precv))
-    //         {
-    //             rt_kprintf("at read failure. ^_^\r\n");
-    //             return;
-    //         }
-    //     }
-
-    //     rt_kprintf("@success: at enters configuration mode.\r\n");
-    // #define AT_DEVICE_NAME "uart1"
-    //     at_client_init(AT_DEVICE_NAME, 256U);
-    //     // #undef AT_DEVICE_NAME
-}
-
-void at_enter_config(void)
-{
-#define AT_DEVICE_NAME "uart1"
-    at_exit_transparent_mode(AT_DEVICE_NAME);
-}
-MSH_CMD_EXPORT(at_enter_config, AT Client Enter configuration mode.);
-
 /**
  * @brief	rt_thread main线程
  * @details
@@ -675,17 +530,6 @@ MSH_CMD_EXPORT(at_enter_config, AT Client Enter configuration mode.);
 int main(void)
 {
     rt_timer_t timer = RT_NULL;
-    // int count = 1;
-    // /* set LED0 pin mode to output */
-    // rt_pin_mode(LED0_PIN, PIN_MODE_OUTPUT);
-
-    // while (count++)
-    // {
-    //     rt_pin_write(LED0_PIN, PIN_HIGH);
-    //     rt_thread_mdelay(500);
-    //     rt_pin_write(LED0_PIN, PIN_LOW);
-    //     rt_thread_mdelay(500);
-    // }
 
     see_sys_info();
     /*fal层使用：https://github.com/RT-Thread-packages/fal/blob/master/README_ZH.md#falflash-%E6%8A%BD%E8%B1%A1%E5%B1%82*/
@@ -785,7 +629,7 @@ static rt_err_t modbus_rtu_rx_ind(rt_device_t dev, rt_size_t size)
 void modbus_slave_thread_entry(void *parameter)
 {
     rt_thread_pools_t *p_rt_thread_pool = (rt_thread_pools_t *)parameter;
-    modbus_rtu_thread_handle = p_rt_thread_pool->thread_handle;
+    // modbus_rtu_thread_handle = p_rt_thread_pool->thread_handle;
     pModbusHandle pd = Modbus_Object;
     rt_device_t p_dev = RT_NULL;
 
@@ -1235,55 +1079,288 @@ void report_thread_entry(void *parameter)
 }
 
 /**
- * @brief   at指令处理线程
+ * @brief  at模块重启
+ * @details
+ * @param	resp at模块响应帧
+ * @param   other 其他信息
+ * @retval  None
+ */
+static void at_restart(void *resp, void *other)
+{
+    if (RT_NULL == resp || RT_NULL == other)
+        return;
+
+    test_t *pt = (test_t *)other;
+
+    rt_kprintf("@note: at module enter transport mode or restart....\r\n");
+
+    pt->at_id = at_noll_id;
+    pt->at_state = at_exit_transparent;
+}
+
+/**
+ * @brief  获取at模块串口参数
+ * @details
+ * @note    可变参数宏使用：https://www.cnblogs.com/gogly/articles/2416833.html
+ * @param	resp at模块响应帧
+ * @param   other 其他信息
+ * @retval  None
+ */
+static void at_get_uart_param(void *resp, void *other)
+{
+    uint32_t baudrate, databits, stopbits;
+    char parity[8], control[8];
+    if (RT_NULL == resp || RT_NULL == other)
+        return;
+
+    test_t *pt = (test_t *)other;
+
+    sscanf((char *)resp, "%*[^=]=%d,%d,%d,%s,%s", &baudrate, &databits,
+           &stopbits, parity, control);
+    rt_kprintf("baudrate: %d, databits: %d, stopbits: %d, parity: %d, control: %d\r\n",
+               baudrate, databits, stopbits, parity, control);
+
+    /*可以连续处理多个at事件*/
+    pt->at_id = at_entm;
+    // pt->at_state = at_exit_transparent;
+}
+
+/**
+ * @brief  通过at模块获取网络时间
+ * @details
+ * @note    sscsnf使用正则表达式：https://www.cnblogs.com/lanjianhappy/p/7171341.html
+ * @param	resp at模块响应帧
+ * @param   other 其他信息
+ * @retval  None
+ */
+static void at_get_ntp_time(void *resp, void *other)
+{
+    if (RT_NULL == resp || RT_NULL == other)
+        return;
+
+    test_t *pt = (test_t *)other;
+    char buf[8];
+    struct tm tm_new, *p = &tm_new;
+
+    sscanf((char *)resp, "%*[^=]=%d-%d-%d  %d:%d:%d  %s",
+           &p->tm_year, &p->tm_mon, &p->tm_mday, &p->tm_hour, &p->tm_min, &p->tm_sec, buf);
+    rt_kprintf("%d-%d-%d  %d:%d:%d  %s\r\n",
+               p->tm_year, p->tm_mon, p->tm_mday, p->tm_hour, p->tm_min, p->tm_sec, buf);
+
+    pt->at_id = at_entm;
+}
+
+static at_cmd at_table[] = {
+    {.psend = "+++", .precv = "a"},
+    {.psend = "a", .precv = "+OK"},
+    {.psend = "AT+Z", .event = at_restart},
+    {.psend = "AT+ENTM", .event = at_restart},
+    {.psend = "AT+UART", .event = at_get_uart_param},
+    {.psend = "AT+NTPTM", .event = at_get_ntp_time},
+};
+
+/**
+ * @brief   根据当前id
+ * @details
+ * @param	id at事件id
+ * @retval  NULL/target cmd handle
+ */
+static at_cmd_t get_target_at_event(enum at_cmd_id id)
+{
+    if (id > at_enter_cmd2 && id < at_max_id)
+        return &at_table[id];
+
+    return NULL;
+}
+
+/**
+ * @brief   at进入临时指令线
+ * @details
+ * @param client 目标客户端句柄
+ * @param cmd_table 客户端指令表
+ * @retval  操作的结果
+ */
+static rt_err_t at_enter_transparent_mode(at_client_t client,
+                                          at_cmd_t cmd_table)
+{
+    rt_err_t ret = RT_EOK;
+    char at_recv_buf[8U];
+
+    for (at_cmd_t p_cmd = cmd_table; client && cmd_table && (p_cmd < cmd_table + 2U);
+         ++p_cmd)
+    {
+        at_client_obj_send(client, p_cmd->psend, rt_strlen(p_cmd->psend));
+        rt_memset(at_recv_buf, 0x00, sizeof(at_recv_buf));
+        at_client_obj_recv(client, at_recv_buf, sizeof(at_recv_buf), 500);
+        if (RT_NULL == strstr(at_recv_buf, p_cmd->precv))
+        {
+            rt_kprintf("cur %s, string: %s not found. ^_^\r\n", at_recv_buf, p_cmd->precv);
+            ret = RT_ERROR;
+            break;
+        }
+    }
+
+    return ret;
+}
+
+/**
+ * @brief   at状态机线程
  * @details
  * @param	parameter:线程初始参数
  * @retval  None
  */
-// void at_thread_entry(void *parameter)
-// {
+void at_fsm_thread_entry(void *parameter)
+{
+    rt_thread_pools_t *p_rt_thread_pool = (rt_thread_pools_t *)parameter;
+    // at_stop_semaphore = p_rt_thread_pool->semaphore;
+    test_t *pt = (test_t *)p_rt_thread_pool->parameter;
+    pModbusHandle pd = Modbus_Object;
+    rt_base_t level;
+    rt_err_t (*modbus_rtu_rx_ind)(rt_device_t dev, rt_size_t size) = RT_NULL;
+    rt_err_t ret;
+    at_client_t client = RT_NULL;
+    // at_response_t resp = RT_NULL;
+    char *resp = RT_NULL;
 
-// }
+    if (pd && pd->dev)
+    {
+        at_client_init(pd->dev->parent.name, 128U); // 初始化client
+        client = at_client_get(pd->dev->parent.name);
+        if (client && client->parser) // rt-thread的一个线程无法挂起另外一个线程，用不到urc数据解析
+        {
+            resp = client->recv_line_buf;
+            rt_thread_delete(client->parser);
+        }
+    }
+
+    for (;;)
+    {
+        if (RT_NULL == pd || RT_NULL == pd->dev ||
+            RT_NULL == pt || RT_NULL == client) // RT_NULL == at_semaphore ||
+            pt->at_state = at_standy;
+
+        switch (pt->at_state)
+        {
+        case at_enter_transparent:
+        {
+            /* backup modbus device RX indicate */
+            // {
+            //     level = rt_hw_interrupt_disable();
+            //     modbus_rtu_rx_ind = pd->dev->rx_indicate;
+            //     rt_device_set_rx_indicate(pd->dev, at_config_rx_ind);
+            //     rt_hw_interrupt_enable(level);
+            // }
+
+            /* backup modbus device RX indicate */
+            modbus_rtu_rx_ind = pd->dev->rx_indicate;
+            if (client)
+            {
+                extern void set_at_client_rx(at_client_t client);
+                set_at_client_rx(client);
+                ret = at_enter_transparent_mode(client, at_table);
+            }
+            if (ret != RT_EOK)
+            {
+                rt_kprintf("@error: an error occurred while entering command mode. ^_^\r\n");
+                // __RESET_FLAG(pt->flag, test_at_flag); // 未收到响应，导致失败
+            }
+            // else
+            //     rt_thread_startup(client->parser);
+
+            // else
+            // {
+            //     at_client_t client = at_client_get_first();
+            //     if (client)
+            //     {
+            //         extern void set_at_client_rx(at_client_t client);
+            //         level = rt_hw_interrupt_disable();
+            //         set_at_client_rx(client);
+            //         rt_hw_interrupt_enable(level);
+            //         rt_thread_startup(client->parser);
+            //     }
+            // }
+            /* 创建响应结构体，设置最大支持响应数据长度为 128字节，响应数据行数无限制，超时时间为 2 秒 */
+            // resp = at_create_resp(128, 0, rt_tick_from_millisecond(1000));
+            // if (!resp)
+            // {
+            //     LOG_E("@note: No memory for response structure!");
+            // }
+            pt->at_state = (RT_EOK == ret) ? at_continue : at_exe_failed;
+
+            if (__GET_FLAG(pt->flag, test_at_flag)) // 进入at cli模式
+                pt->at_state = at_cli;
+        }
+        break;
+        case at_exit_transparent:
+        {
+            /* restore modbus device RX indicate */
+            {
+                level = rt_hw_interrupt_disable();
+                rt_device_set_rx_indicate(pd->dev, modbus_rtu_rx_ind);
+                rt_hw_interrupt_enable(level);
+            }
+            /* 删除服务器响应结构体 */
+            // at_delete_resp(resp);
+            /*发出暂停at解析线程信号量*/
+            // if (at_stop_semaphore)
+            //     rt_sem_release(at_stop_semaphore);
+            pt->at_state = at_standy;
+        }
+        break;
+        case at_continue:
+        {
+            at_cmd_t p_at = get_target_at_event(pt->at_id);
+            if (RT_NULL == p_at || RT_NULL == p_at->event ||
+                RT_NULL == p_at->psend || RT_NULL == resp)
+                goto __exit;
+
+            /* 发送数据到服务器，并接收响应数据存放在 resp 结构体中 */
+            at_obj_exec_cmd(client, RT_NULL, p_at->psend);
+            rt_memset(resp, 0x00, client->recv_bufsz);
+            at_client_obj_recv(client, resp, client->recv_bufsz, 500);
+            p_at->event(resp, pt);
+            // pt->at_state = at_standy;
+        }
+        break;
+        case at_exe_failed:
+        case at_complete:
+        {
+        __exit:
+            pt->at_state = at_exit_transparent;
+        }
+        break;
+        case at_standy:
+        case at_cli:
+        default:
+        {
+            // if ((at_cli == pt->at_state) && !__GET_FLAG(pt->flag, test_at_flag)) // 退出at cli模式
+            //     pt->at_state = at_exit_transparent;
+            rt_thread_mdelay(100);
+        }
+        break;
+        }
+    }
+}
 
 #ifdef FINSH_USING_MSH
 #include <finsh.h>
 
-int at_send(int argc, char **argv)
+/**
+ * @brief   查看系统信息
+ * @details
+ * @param	None
+ * @retval  None
+ */
+static void see_sys_info(void)
 {
-    at_response_t resp = RT_NULL;
-
-    if (argc != 2)
-    {
-        LOG_E("at_cli_send [command]  - AT client send commands to AT server.");
-        return -RT_ERROR;
-    }
-
-    /* 创建响应结构体，设置最大支持响应数据长度为 512 字节，响应数据行数无限制，超时时间为 5 秒 */
-    resp = at_create_resp(512, 0, rt_tick_from_millisecond(5000));
-    if (!resp)
-    {
-        LOG_E("No memory for response structure!");
-        return -RT_ENOMEM;
-    }
-
-    /* 发送 AT 命令并接收 AT Server 响应数据，数据及信息存放在 resp 结构体中 */
-    if (at_exec_cmd(resp, argv[1]) != RT_EOK)
-    {
-        LOG_E("AT client send commands failed, response error or timeout !");
-        return -RT_ERROR;
-    }
-    LOG_I("resp: %s.", resp->buf);
-
-    /* 命令发送成功 */
-    LOG_D("AT Client send commands to AT Server success!");
-
-    /* 删除响应结构体 */
-    at_delete_resp(resp);
-
-    return RT_EOK;
+#define CURRENT_HARDWARE_VERSION "1.0.0"
+#define CURRENT_SOFT_VERSION "1.2.6"
+    rt_kprintf("@note:Current Hardware version: %s , software version: %s.\n",
+               CURRENT_HARDWARE_VERSION, CURRENT_SOFT_VERSION);
+#undef CURRENT_HARDWARE_VERSION
+#undef CURRENT_SOFT_VERSION
 }
-/* 输出 at_Client_send 函数到 msh 中 */
-MSH_CMD_EXPORT(at_send, AT Client send commands to AT Server and get response data);
+MSH_CMD_EXPORT(see_sys_info, View system information.);
 
 /**
  * @brief  finsh进行控制台还原
@@ -1306,8 +1383,7 @@ static void re_console(void)
         ret = rt_device_open(pd->dev, RT_DEVICE_FLAG_TX_BLOCKING | RT_DEVICE_FLAG_RX_NON_BLOCKING);
         if (RT_EOK == ret)
             rt_device_set_rx_indicate(pd->dev, modbus_rtu_rx_ind); // 重新设置空当前串口回调函数
-        if (modbus_rtu_thread_handle)
-            ret = rt_thread_resume(modbus_rtu_thread_handle);
+
         rt_kprintf("@note: enter modbus_rtu mode.\r\n");
     }
 }

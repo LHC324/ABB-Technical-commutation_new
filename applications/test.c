@@ -24,7 +24,7 @@ test_t test_object = {
         .current_offset = 5.0f,
         .voltage_offset = 5.0f,
     },
-    .freq_table = {0, 5e1f, 1e4f, 125e5f},
+    .freq_table = {0, 5e1f, 2e3f, 125e5f},
     .dc.output_voltage = 36.0F,
     .ac = {
 
@@ -33,7 +33,7 @@ test_t test_object = {
             .frequency = 0,
             .fre_sfr = 0,
             .phase_sfr = 0,
-            .range = 30,
+            .range = 155,
             .wave_mode = ad9833_sin,
         },
     },
@@ -301,12 +301,12 @@ ad9833_out_t *test_set_run_wave(ptest_t pt, float cur_freq)
 
     ad9833_out_t *pwave = test_get_wave_handle();
 
-    if (cur_freq > 5000) // 自动调整幅值以适应功率放大板：保证不削顶
-        pt->ac.wave_param.range = 50;
-    else if (cur_freq > 1000)
-        pt->ac.wave_param.range = 30;
-    else
-        pt->ac.wave_param.range = 20;
+    // if (cur_freq > 5000) // 自动调整幅值以适应功率放大板：保证不削顶
+    //     pt->ac.wave_param.range = 50;
+    // else if (cur_freq > 1000)
+    //     pt->ac.wave_param.range = 30;
+    // else
+    //     pt->ac.wave_param.range = 20;
 
     memcpy(pwave, &pt->ac.wave_param, sizeof(ad9833_out_t)); // 系统参数加载到运行区
     pwave->frequency = cur_freq;
@@ -584,6 +584,110 @@ void test_data_save(test_t *pt, test_data_t *pdata)
     }
 }
 
+typedef struct
+{
+    float p, q;
+} adc_cali_factor;
+
+static adc_cali_factor current_factor[] = {
+    {0.0006f, -1.3183f}, // DC
+    {0.049f, -94.142f},  //@AC50Hz
+    {1.0803f, -2061.9f}, //@AC2KHz
+};
+
+static adc_cali_factor voltage_factor[][7U][2U] = {
+    {
+        {
+            {0.0198f, -40.495f},
+            {0.0193f, -38.805f},
+        },
+        {
+            {0.0203f, -42.354f},
+            {0.0197f, -41.208f},
+        },
+        {
+            {0.0205f, -43.077f},
+            {0.02f, -41.646f},
+        },
+        {
+            {0.0204f, -42.599f},
+            {0.0203f, -42.208f},
+        },
+        {
+            {0.0205f, -42.702f},
+            {0.02f, -41.535f},
+        },
+        {
+            {0.0205f, -42.245f},
+            {0.02f, -41.101f},
+        },
+        {
+            {0.021f, -43.522f},
+            {0.0203f, -41.796f},
+        },
+    }, // DC
+    {
+        {
+            {0.06139f, -129.15f},
+            {0.0602f, -121.00f},
+        },
+        {
+            {0.0658f, -133.17f},
+            {0.0619f, -124.65f},
+        },
+        {
+            {0.0663f, -134.19f},
+            {0.0622f, -124.90f},
+        },
+        {
+            {0.0654f, -132.48f},
+            {0.0623f, -125.24f},
+        },
+        {
+            {0.0657f, -132.97f},
+            {0.0628f, -126.47f},
+        },
+        {
+            {0.0665f, -134.58f},
+            {0.0624f, -125.11f},
+        },
+        {
+            {0.0673f, -136.09f},
+            {0.0638f, -127.83f},
+        },
+    }, //@AC50Hz
+    {
+        {
+            {0.0389f, -73.371f},
+            {0.039f, -73.552f},
+        },
+        {
+            {0.0389f, -73.371f},
+            {0.039f, -73.552f},
+        },
+        {
+            {0.0389f, -73.371f},
+            {0.039f, -73.552f},
+        },
+        {
+            {0.0389f, -73.371f},
+            {0.039f, -73.552f},
+        },
+        {
+            {0.0389f, -73.371f},
+            {0.039f, -73.552f},
+        },
+        {
+            {0.0389f, -73.371f},
+            {0.039f, -73.552f},
+        },
+        {
+            {0.0389f, -73.371f},
+            {0.039f, -73.552f},
+        },
+    }, //@AC2KHz
+};
+
 /**
  * @brief	测试系统数据处理
  * @details
@@ -592,12 +696,12 @@ void test_data_save(test_t *pt, test_data_t *pdata)
  */
 void test_data_handle(test_t *pt)
 {
-#define USER_DATA_NUMS 64U
+#define USER_DATA_NUMS 128U
     // float v0_sum = 0, v1_sum = 0, i0_sum = 0;
     // float ei0, ev0, ev1;
     float calc_result[] = {0, 0, 0}; // i0、v0、v1
     float sum_of_squares = 0;
-    float voltage = 0;
+    // float voltage = 0;
 
     if (NULL == pt)
         return;
@@ -605,8 +709,11 @@ void test_data_handle(test_t *pt)
     for (uint8_t i = 0; i < sizeof(adc_buf) / sizeof(adc_buf[0]); ++i)
     {
 #if (USING_TEST_DEBUG)
-        TEST_DEBUG_R("\r\nadc_group[%d]:\r\n", i);
-        TEST_DEBUG_R("----\t----\t----\t----\t----\t----\t----\t----\r\n");
+        if (__GET_FLAG(pt->flag, test_developer_signal))
+        {
+            TEST_DEBUG_R("\r\nadc_group[%d]:\r\n", i);
+            TEST_DEBUG_R("----\t----\t----\t----\t----\t----\t----\t----\r\n");
+        }
 #endif
 
         KFP hkfp = {
@@ -627,53 +734,75 @@ void test_data_handle(test_t *pt)
                 adc_buf[0][j] &= 0x0000FFFF;
             }
 
-            if (!__GET_FLAG(pt->flag, test_developer_signal))
-            {
-                voltage = (float)adc_buf[i][j] * 3.3F / 4096.0F; // 替换为校准公式
-            }
-            else // 兼容开发者模式
-                voltage = (float)adc_buf[i][j];
+            // if (!__GET_FLAG(pt->flag, test_developer_signal))
+            // {
+            //     voltage = (float)adc_buf[i][j] * 3.3F / 4096.0F; // 替换为校准公式
+            // }
+            // else // 兼容开发者模式
+            //     voltage = (float)adc_buf[i][j];
 #if (USING_TEST_DEBUG)
-            TEST_DEBUG_R("%.2f\t", voltage);
-            if (((j + 1U) % 8) == 0)
-                TEST_DEBUG_R("\r\n");
+            if (__GET_FLAG(pt->flag, test_developer_signal))
+            {
+                TEST_DEBUG_R("%d\t", adc_buf[i][j]);
+                if (((j + 1U) % 8) == 0)
+                    TEST_DEBUG_R("\r\n");
+            }
 #endif
 
             /*ac模式：计算有效值*/
-            // if (j < USER_DATA_NUMS)
+            switch (pt->pre->cur_power)
             {
-                switch (pt->pre->cur_power)
-                {
-                case dc_out:
-                    // sum_of_squares += voltage; // 实际测试：是否需要卡尔曼
-                    sum_of_squares = kalmanFilter(&hkfp, voltage);
-                    break;
-                case ac1_out:
-                case ac2_out:
-                    if (j > 95 && j <= 160) // 取256中间的64个点
-                        sum_of_squares += powf(voltage, 2.0F);
-                    break;
-                default:
-                    break;
-                }
+            case dc_out:
+                // sum_of_squares += voltage; // 实际测试：是否需要卡尔曼
+                sum_of_squares = kalmanFilter(&hkfp, adc_buf[i][j]);
+                break;
+            case ac1_out:
+            case ac2_out:
+                if (j > 63 && j < 192) // 取256中间的128个点
+                    sum_of_squares += powf(adc_buf[i][j], 2.0F);
+                break;
+            default:
+                break;
             }
         }
         if (i < sizeof(calc_result) / sizeof(calc_result[0]))
         {
+            float p = 0, q = 0;
+            switch (i)
+            {
+            case 0:
+            {
+                p = current_factor[pt->pre->cur_power].p;
+                q = current_factor[pt->pre->cur_power].q;
+            }
+            break;
+            case 1:
+            case 2:
+            {
+                p = voltage_factor[pt->pre->cur_power][pt->pre->cur_exe_count][i - 1U].p;
+                q = voltage_factor[pt->pre->cur_power][pt->pre->cur_exe_count][i - 1U].q;
+            }
+            break;
+            }
             /*对dc、ac数据分类处理*/
             switch (pt->pre->cur_power)
             {
             case dc_out:
                 // calc_result[i] = sum_of_squares / (float)USER_DATA_NUMS;
                 calc_result[i] = sum_of_squares;
+                calc_result[i] = sum_of_squares * p + q;
                 break;
             case ac1_out:
             case ac2_out:
-                calc_result[i] = sqrtf(sum_of_squares / (float)USER_DATA_NUMS);
+                sum_of_squares = sqrtf(sum_of_squares / (float)USER_DATA_NUMS);
+                calc_result[i] = sum_of_squares * p + q;
                 break;
             default:
                 break;
             }
+#if (USING_TEST_DEBUG)
+            TEST_DEBUG_R("adc_val: %f, p: %f, q:%f.\r\n", sum_of_squares, p, q);
+#endif
         }
     }
 
@@ -806,7 +935,7 @@ static relay_power_type test_select_power(ptest_t pt, enum wave_freq freq_type)
  */
 static void test_at_auto(ptest_t pt)
 {
-    static uint8_t auto_count = 0;
+    // static uint8_t auto_count = 0;
 #if (USING_TEST_DEBUG)
     // TEST_DEBUG_D("@note: exe 'test_at_auto'.\n");
 #endif
@@ -825,22 +954,22 @@ static void test_at_auto(ptest_t pt)
     //     relay_poll(pt->pre, pos_sque_action);       // 设置继电器策略：正向动作
     // }
 
-    if (auto_count < max_freq)
+    if (pt->auto_count < max_freq)
     {
         /*波形参数写入参数池*/
-        test_set_run_wave(pt, test_select_output_freq(pt, auto_count));
-        pt->pre->cur_power = test_select_power(pt, (enum wave_freq)auto_count); // 获取目标电源类型：手动模式时需要
-        relay_poll(pt->pre, pos_sque_action);                                   // 设置继电器策略：正向动作
-        auto_count++;
+        test_set_run_wave(pt, test_select_output_freq(pt, pt->auto_count));
+        pt->pre->cur_power = test_select_power(pt, (enum wave_freq)pt->auto_count); // 获取目标电源类型：手动模式时需要
+        relay_poll(pt->pre, pos_sque_action);                                       // 设置继电器策略：正向动作
+        // auto_count++;
     }
-    else
-    {
-#if (USING_TEST_DEBUG)
-        TEST_DEBUG_D("@note: end of automatic mode test.\n");
-#endif
-        auto_count = 0;
-        __SET_FLAG(pt->flag, test_finsh_signal);
-    }
+    //     else
+    //     {
+    // #if (USING_TEST_DEBUG)
+    //         TEST_DEBUG_D("@note: end of automatic mode test.\n");
+    // #endif
+    //         pt->auto_count = 0;
+    //         __SET_FLAG(pt->flag, test_finsh_signal);
+    //     }
 }
 
 /**
@@ -1040,6 +1169,28 @@ static void set_flags(int argc, char **argv)
     }
 
     TEST_DEBUG_R("@note: cur_flags[%#x].\n", pt->flag);
+
+    /*检查标志位是否与at模块相关*/
+    if (flag != test_at_flag)
+        return;
+
+    if ((pt->at_state == at_cli) && val ||
+        (pt->at_state != at_cli) && (pt->at_state != at_standy))
+    {
+        TEST_DEBUG_R("@note: The wifi module is busy or the flag has been set.\n");
+        return;
+    }
+
+    if (val)
+    {
+        pt->at_state = at_enter_transparent;
+        TEST_DEBUG_R("@note: you can enter at_cli mode.\n", pt->flag);
+    }
+    else
+    {
+        pt->at_state = at_exit_transparent;
+        TEST_DEBUG_R("@note: exit at_cli mode.\n", pt->flag);
+    }
 }
 MSH_CMD_EXPORT(set_flags, set_flags<(0 ~31) | (0 / 1)>.);
 #endif

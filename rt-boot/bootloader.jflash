@@ -3,7 +3,7 @@
 [GENERAL]
   aATEModuleSel[24] = 0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0
   ConnectMode = 0
-  CurrentFile = "G:\STM32_Workers\STM32F1\ABB Technical commutation_new\rt-boot\rtboot_f1_gzip_uart3.bin"
+  CurrentFile = "G:\STM32_Workers\STM32F1\ABB Technical commutation_new\rt-boot\rtboot_f1_gzip_uart1_PB6.bin"
   DataFileSAddr = 0x08000000
   GUIMode = 0
   HostName = ""

@@ -190,7 +190,7 @@ static Lhc_Modbus_State_Code Modbus_Recive_Check(pModbusHandle pd)
     if ((smd_rx_count(pd) < 2U) || (smd_rx_count(pd) > smd_rx_size(pd)))
     {
 #if (SMODBUS_USING_DEBUG)
-        SMODBUS_DEBUG_D("@error:Protocol frame length error.\r\n");
+        SMODBUS_DEBUG_D("@error:Protocol frame length error,cur: %d.\r\n", smd_rx_count(pd));
 #endif
         return lhc_mod_err_len;
     }
@@ -201,21 +201,24 @@ static Lhc_Modbus_State_Code Modbus_Recive_Check(pModbusHandle pd)
     if (Get_Smodus_id() != lhc_modbus_id)
     {
 #if (SMODBUS_USING_DEBUG)
-        SMODBUS_DEBUG_D("@error:Protocol stack address error.\r\n");
+        SMODBUS_DEBUG_D("@error:Protocol stack address error,target: %d,cur: %d.\r\n",
+                        lhc_modbus_id, Get_Smodus_id());
 #endif
         return lhc_mod_err_id;
     }
     uint16_t crc16 = get_crc16(smd_rx_buf, smd_rx_count(pd) - 2U, 0xffff);
-#if (SMODBUS_USING_DEBUG)
-    SMODBUS_DEBUG_D("md_rxcount = %d,crc16 = 0x%X.\r\n", smd_rx_count(pd),
-                    (uint16_t)((crc16 >> 8U) | (crc16 << 8U)));
-#endif
+    // #if (SMODBUS_USING_DEBUG)
+    //     SMODBUS_DEBUG_D("md_rxcount = %d,crc16 = 0x%X.\r\n", smd_rx_count(pd),
+    //                     (uint16_t)((crc16 >> 8U) | (crc16 << 8U)));
+    // #endif
 
     if (Get_Smodbus_Data(smd_rx_buf, smd_rx_count(pd) - 2U, SMODBUS_WORD) !=
         ((uint16_t)((crc16 >> 8U) | (crc16 << 8U))))
     {
 #if (SMODBUS_USING_DEBUG)
-        SMODBUS_DEBUG_D("@error:crc check code error.\r\n");
+        SMODBUS_DEBUG_D("@error: crc check code error,target crc[%#x],cur crc[%#x],count: %d.\r\n",
+                        (uint16_t)((crc16 >> 8U) | (crc16 << 8U)),
+                        Get_Smodbus_Data(smd_rx_buf, smd_rx_count(pd) - 2U, SMODBUS_WORD), smd_rx_count(pd));
 #endif
         return lhc_mod_err_crc;
     }
@@ -243,6 +246,9 @@ static bool lhc_check_is_ota(pModbusHandle pd)
  */
 static void Modbus_Poll(pModbusHandle pd)
 {
+	Lhc_Modbus_State_Code lhc_state;
+	pSmallModbus_Operate pFunc_Group[] = {NULL, NULL, NULL, NULL};
+    pSmallModbus_Operate *pOpt = pFunc_Group;
 #if (!SMODBUS_USING_RTOS)
     if (!pd->Uart.recive_finish_flag)
         return;
@@ -256,10 +262,10 @@ static void Modbus_Poll(pModbusHandle pd)
 #endif
         if (pd->Mod_Ota)
             pd->Mod_Ota(pd);
-        return;
+        goto __exit;
     }
     /*可以利用功能码和数据长度预测帧长度：可解析粘包数据*/
-    Lhc_Modbus_State_Code lhc_state = Modbus_Recive_Check(pd);
+    lhc_state = Modbus_Recive_Check(pd);
     if (lhc_state != lhc_mod_ok)
     {
 #if (SMODBUS_USING_DEBUG)
@@ -272,11 +278,9 @@ static void Modbus_Poll(pModbusHandle pd)
 #endif
         if (pd->Mod_Error)
             pd->Mod_Error(pd, lhc_state);
-        return;
+        goto __exit;
     }
 
-    pSmallModbus_Operate pFunc_Group[] = {NULL, NULL, NULL, NULL};
-    pSmallModbus_Operate *pOpt = pFunc_Group;
 #define Using_Opt(__pd, __pOpt, __id)       \
     do                                      \
     {                                       \
@@ -324,6 +328,7 @@ static void Modbus_Poll(pModbusHandle pd)
     default:
         break;
     }
+__exit:
     if (pd->Mod_CallBack)
         pd->Mod_CallBack(pd, (Function_Code)Get_SmodbusFunCode());
     memset(smd_rx_buf, 0x00, smd_rx_size(pd));
@@ -535,12 +540,12 @@ static void Modbus_ReadXCoil(pModbusHandle pd)
                 smd_tx_buf[smd_tx_count(pd)] &= ~(bit << j);
         }
 #if (SMODBUS_USING_DEBUG)
-        SMODBUS_DEBUG_D("pTbuf[%d] = 0x%X.\r\n", i, smd_tx_buf[smd_tx_count(pd)]);
+        // SMODBUS_DEBUG_D("pTbuf[%d] = 0x%X.\r\n", i, smd_tx_buf[smd_tx_count(pd)]);
 #endif
         smd_tx_count(pd)++;
     }
 #if (SMODBUS_USING_DEBUG)
-    SMODBUS_DEBUG_D("smd_tx_count(pd) = %d.\r\n", smd_tx_count(pd));
+    // SMODBUS_DEBUG_D("smd_tx_count(pd) = %d.\r\n", smd_tx_count(pd));
 #endif
     pd->Mod_Transmit(pd, UsedCrc);
 __exit:

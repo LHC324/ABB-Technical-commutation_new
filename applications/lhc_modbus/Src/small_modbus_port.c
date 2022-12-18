@@ -168,19 +168,6 @@ static void Modbus_UnLock(void)
 #endif
 
 /**
- * @brief  modbus协议栈关闭目标串口dma模式
- * @param  pd modbus协议站句柄
- * @retval None
- */
-// static void modbus_close_uart_dma_revc_mode(pModbusHandle pd)
-// {
-//     if (NULL == pd || pd->Uart.huart)
-//         return;
-//     /*关闭空闲中断*/
-//     __HAL_UART_DISABLE_IT((UART_HandleTypeDef *)pd->Uart.huart, UART_IT_IDLE);
-// }
-
-/**
  * @brief  modbus协议栈进行控制台转移
  * @param  pd modbus协议站句柄
  * @retval None
@@ -199,18 +186,9 @@ static void lhc_console_transfer(pModbusHandle pd)
         rt_device_set_rx_indicate(pd->dev, RT_NULL); // 置空当前串口回调函数
         pd->old_console = rt_console_set_device(pd->dev->parent.name);
         finsh_set_device(pd->dev->parent.name);
-    }
-
-    /*以流模式打开串口*/
-    // ret = rt_device_open(p_dev, RT_DEVICE_FLAG_TX_BLOCKING |
-    //                                 RT_DEVICE_FLAG_RX_NON_BLOCKING |
-    //                                 RT_DEVICE_FLAG_STREAM);
-    rt_thread_t thread_handle = rt_thread_self();
-    if (RT_EOK == ret && thread_handle)
-    {
         rt_kprintf("@note: enter finsh mode.\r\n");
-        rt_thread_suspend(thread_handle);
     }
+    // 没有挂起的必要：中断函数转移后将会永久挂起
 }
 
 /**

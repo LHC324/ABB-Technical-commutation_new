@@ -355,6 +355,7 @@ static rt_err_t _rym_do_trans(struct rym_ctx *ctx)
         rt_err_t err;
         enum rym_code code;
         rt_size_t data_sz, i;
+        rt_size_t errors;
 
         code = _rym_read_code(ctx,
                               RYM_WAIT_PKG_TICK);
@@ -373,8 +374,19 @@ static rt_err_t _rym_do_trans(struct rym_ctx *ctx)
         };
 
         err = _rym_trans_data(ctx, data_sz, &code);
+        // if (err != RT_EOK)
+        //     return err;
         if (err != RT_EOK)
-            return err;
+        {
+            errors++;
+            if(errors > RYM_MAX_ERRORS)
+                return err;/* Abort communication */
+            else
+               code = RYM_CODE_NAK;/* Ask for a packet */ 
+        }
+        else
+            errors = 0;
+
         switch (code)
         {
         case RYM_CODE_CAN:
@@ -386,6 +398,9 @@ static rt_err_t _rym_do_trans(struct rym_ctx *ctx)
             return -RYM_ERR_CAN;
         case RYM_CODE_ACK:
             _rym_putchar(ctx, RYM_CODE_ACK);
+            break;
+        case RYM_CODE_NAK:
+            _rym_putchar(ctx, RYM_CODE_NAK);
             break;
         default:
             // wrong code

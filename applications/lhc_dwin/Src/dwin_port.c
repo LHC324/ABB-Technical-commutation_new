@@ -514,29 +514,6 @@ static dwin_result dwin_data_type_parser(dwin_val_glue_t *pt,
 }
 
 /**
- * @brief  迪文屏幕数据回传
- * @param  pd 迪文屏幕对象句柄
- * @param  addr 数据地址
- * @param  pdata 数据指针
- * @param   c_size 交换_数据长度
- * @retval None
- */
-static void dwin_data_echo(pDwinHandle pd,
-                           uint16_t addr,
-                           uint8_t *pdata,
-                           uint8_t c_size)
-{
-    uint8_t len = c_size & 0x7F;
-    if (pd == NULL || pdata == NULL)
-        return;
-
-    if (c_size & DWIN_MUST_CHEANGE)
-        endian_swap(pdata, 0, len);
-    /*确认数据回传到屏幕:*/
-    pd->Dw_Write(pd, addr, pdata, len);
-}
-
-/**
  * @brief  密码处理
  * @param  pd 迪文屏幕对象句柄
  * @param  site 记录当前Map中位置
@@ -916,6 +893,25 @@ static void dwin_set_wifi_module_param(pDwinHandle pd,
 }
 
 /**
+ * @brief  触发at指令执行器执行目标指令
+ * @note   带busy检测，busy状态失败
+ * @param  pt 检测系统句柄
+ * @param  id 目标at时间id
+ * @retval None
+ */
+bool at_start_exe_cmd(ptest_t pt, enum at_cmd_id id)
+{
+    // 确保at执行器空闲模式才触发
+    if (pt && id < at_max_id && (at_standy == pt->at_state))
+    {
+        pt->at_id = id;
+        pt->at_state = at_enter_transparent;
+        return true;
+    }
+    return false;
+}
+
+/**
  * @brief  时间更新操作
  * @param  pd 迪文屏幕对象句柄
  * @param  site 记录当前Map中位置
@@ -940,6 +936,9 @@ static void dwin_rtc_handle(pDwinHandle pd,
         .tm_min = pd->Uart.rx.pbuf[12],
         .tm_sec = pd->Uart.rx.pbuf[13],
     };
+    ptest_t pt = (ptest_t)pd->Slave.pHandle;
+    if (NULL == pt)
+        return;
 
     switch (addr)
     {
@@ -955,20 +954,20 @@ static void dwin_rtc_handle(pDwinHandle pd,
             return;
         }
         gettimeofday(&tv, &tz);
+        /* output current time */
+        rt_kprintf("local time: %.*s", 25, ctime(&now));
+        rt_kprintf("timestamps: %ld\n", (long)tv.tv_sec);
+        rt_kprintf("timezone: UTC%c%d\n", -tz.tz_minuteswest > 0 ? '+' : '-', -tz.tz_minuteswest / 60);
     }
     break;
     case DWIN_GET_NET_TIMES_ADDR: // 获取网络时间
     {
+        at_start_exe_cmd(pt, at_ntp_time);
     }
     break;
     default:
         break;
     }
-
-    /* output current time */
-    rt_kprintf("local time: %.*s", 25, ctime(&now));
-    rt_kprintf("timestamps: %ld\n", (long)tv.tv_sec);
-    rt_kprintf("timezone: UTC%c%d\n", -tz.tz_minuteswest > 0 ? '+' : '-', -tz.tz_minuteswest / 60);
 
 #if (DWIN_USING_DEBUG)
     DWIN_DEBUG("@note:site:%#x,addr:%#x,exe'dwin_rtc_handle'.\r\n",

@@ -35,6 +35,7 @@ extern "C"
         test_zero_crossing_signal, // 过零信号
         test_first_flag,           // 首次开始标志
         test_mode,                 /*测试模式:bit0 0为自动，1为手动*/
+        test_at_flag,              /*at自由指令模式标志*/
         test_max_flag,
     };
     enum test_stage
@@ -85,14 +86,48 @@ extern "C"
         unsigned int set_flag; /*定时器被设置标志：用设置了定时器时间但是时间未到*/
         unsigned int count;    /*时间计数器*/
     } test_timer_t;
+
+    typedef struct
+    {
+        char *psend;
+        char *precv;
+        void (*event)(void *resp, void *other);
+    } at_cmd;
+    typedef at_cmd *at_cmd_t;
+
+    enum at_state
+    {
+        at_exe_failed = -1,
+        at_standy,
+        at_enter_transparent,
+        at_exit_transparent,
+        at_continue,
+        at_complete,
+        at_cli,
+    };
+    enum at_cmd_id
+    {
+        at_noll_id = -1,
+        at_enter_cmd1,
+        at_enter_cmd2,
+        at_z,
+        at_entm,
+        at_uart,
+        at_ntp_time,
+        at_max_id,
+    };
+
     typedef struct test_handletypedef test_t;
     typedef struct test_handletypedef *ptest_t;
     struct test_handletypedef
     {
-        uint32_t flag; // 系统标志位
+        uint32_t flag;          // 系统标志位
+        enum at_state at_state; // wifi模块at临时指令模式
+        enum at_cmd_id at_id;
         // relay_power_type cur_power;     //电源类型
         pre_handle pre;            // 继电器操作组指针
         enum test_stage cur_stage; // 系统当前测试阶段
+        uint16_t auto_count;       // 自动模式执行计数
         // relay_tactics_type cur_tactics;          // 当前策略
         uint16_t test_result;                    // 测试结果
         test_timer_t timer[TEST_SOFT_TIMER_NUM]; // 软件定时器组

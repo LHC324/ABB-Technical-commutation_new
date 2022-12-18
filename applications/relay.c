@@ -83,6 +83,7 @@ relay_error_code relay_callback(pre_handle pre)
     ptest_t pt = &test_object;
     rt_err_t rt_result;
     uint8_t cur_site = pre->cur_exe_count;
+    bool finsh_flag = false;
 
     if (pt->data.p == NULL || pre == NULL)
     {
@@ -142,7 +143,26 @@ relay_error_code relay_callback(pre_handle pre)
     if (cur_site == (pre->cur_group.end - 1U))
     {
         if (__GET_FLAG(pt->flag, test_mode)) // 手动模式：单次结束
+        {
+            finsh_flag = true;
+        }
+        else
+        {
+            relay_group temp_group = {
+                .start = 1U,
+                .end = TEST_MAX_NUM,
+            };
+            pre->cur_group = temp_group; // 初始化下一次组开启顺序
+            if (++pt->auto_count > max_freq)
+            {
+                pt->auto_count = 0;
+                finsh_flag = true;
+            }
+        }
+        if (finsh_flag)
+        {
             __SET_FLAG(pt->flag, test_finsh_signal);
+        }
     }
 
     return result;
@@ -666,7 +686,7 @@ static void set_cs(int argc, char **argv)
 
     for (uint8_t i = 0; i < sizeof(cs_state_table) / sizeof(cs_state_table[0]); ++i)
     {
-        uint8_t state = *argv[1 + i] - '0';
+        uint8_t state = (uint8_t)atoi(argv[1 + i]);
         if (state > 1U)
         {
             RELAY_DEBUG_R("@error: parameter[%d]: %d error,please input'0/1'.\n", i + 1, state);

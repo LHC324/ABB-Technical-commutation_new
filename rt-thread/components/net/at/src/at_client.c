@@ -915,6 +915,8 @@ __exit:
     return result;
 }
 
+#define USING_AT_DEFAULT 0
+#if (USING_AT_DEFAULT)
 /**
  * AT client initialize.
  *
@@ -998,4 +1000,75 @@ __exit:
 
     return result;
 }
+#else
+#include <board.h>
+int at_client_init(const char *dev_name,  rt_size_t recv_bufsz)
+{
+    int idx = 0;
+    int result = RT_EOK;
+    at_client_t client = RT_NULL;
+
+    RT_ASSERT(dev_name);
+    RT_ASSERT(recv_bufsz > 0);
+
+    if (at_client_get(dev_name) != RT_NULL)
+    {
+        return result;
+    }
+
+    for (idx = 0; idx < AT_CLIENT_NUM_MAX && at_client_table[idx].device; idx++);
+
+    if (idx >= AT_CLIENT_NUM_MAX)
+    {
+        LOG_E("AT client initialize failed! Check the maximum number(%d) of AT client.", AT_CLIENT_NUM_MAX);
+        result = -RT_EFULL;
+        goto __exit;
+    }
+
+    client = &at_client_table[idx];
+    client->recv_bufsz = recv_bufsz;
+
+    result = at_client_para_init(client);
+    if (result != RT_EOK)
+    {
+        goto __exit;
+    }
+     /* find and open command device */
+    client->device = rt_device_find(dev_name);
+    if (RT_NULL == client->device)
+    {
+        LOG_E("AT client initialize failed! Not find the device(%s).", dev_name);
+        result = -RT_ERROR;
+        goto __exit;
+    }
+    
+__exit:
+    if (result == RT_EOK)
+    {
+        client->status = AT_STATUS_INITIALIZED;
+
+        // rt_thread_startup(client->parser);
+
+        LOG_I("AT client(V%s) on device %s initialize success.", AT_SW_VERSION, dev_name);
+    }
+    else
+    {
+        LOG_E("AT client(V%s) on device %s initialize failed(%d).", AT_SW_VERSION, dev_name, result);
+    }
+
+    return result;
+}
+
+void set_at_client_rx(at_client_t client)
+{
+    rt_base_t level;
+
+    if (client)
+    {
+        level = rt_hw_interrupt_disable();
+        rt_device_set_rx_indicate(client->device, at_client_rx_ind);
+        rt_hw_interrupt_enable(level);
+    }
+}
+#endif
 #endif /* AT_USING_CLIENT */
