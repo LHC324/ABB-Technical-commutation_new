@@ -74,7 +74,8 @@ extern "C"
 #define TEST_SOFT_TIMER_NUM tim_id_max // 测试组软件定时器数量
     typedef struct
     {
-        float voltage;        // 电压
+        float voltage1;       // 电压1
+        float voltage2;       // 电压2
         float current;        // 电流
         float voltage_offset; // 电压偏差率
         float current_offset; // 电流偏差率

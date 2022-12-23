@@ -117,7 +117,11 @@ static enum test_stage get_cur_test_state(ptest_t pt)
     /*检测到过流信号*/
     if (__GET_FLAG(pt->flag, test_overcurrent_signal))
     {
-        return test_filed;
+        __RESET_FLAG(pt->flag, test_start_signal);
+        __RESET_FLAG(pt->flag, test_first_flag);
+        __RESET_FLAG(pt->flag, test_filed_signal);
+        __RESET_FLAG(pt->flag, test_finsh_signal);
+        return test_standby;
     }
 
     if (__GET_FLAG(pt->flag, test_developer_signal)) // 优先检测是否进入开发者模式
@@ -220,16 +224,32 @@ static void test_write_wave_param(ptest_t pt, ad9833_out_t *pad)
 void test_over_current_check(void)
 {
     ptest_t pt = &test_object;
+    static bool start_flag = false;
 
+    if (NULL == pt || NULL == pt->pre)
+        return;
+
+    if (start_flag && !__GET_FLAG(pt->flag, test_overcurrent_signal))
+    {
+        start_flag = false;
+        HAL_GPIO_WritePin(AI_RESET_GPIO_Port, AI_RESET_Pin, GPIO_PIN_RESET); // 清除硬件标志
+        if (pt->pre->relay_delay)
+            pt->pre->relay_delay(1000);
+        HAL_GPIO_WritePin(AI_RESET_GPIO_Port, AI_RESET_Pin, GPIO_PIN_SET); // 失效复位信号
+        pt->cartoon.over_current = 0;                                      // 清除过流动画图标
+#if (USING_TEST_DEBUG)
+        TEST_DEBUG_D("@note: reset overcurrent signal.\r\n");
+#endif
+    }
     if (HAL_GPIO_ReadPin(AI_SHORT_GPIO_Port, AI_SHORT_Pin) == GPIO_PIN_SET)
     {
         __SET_FLAG(pt->flag, test_overcurrent_signal);
         pt->cartoon.over_current = 1; // 开启过流动画图标
-    }
-    if (!__GET_FLAG(pt->flag, test_overcurrent_signal))
-    {
-        HAL_GPIO_WritePin(AI_RESET_GPIO_Port, AI_RESET_Pin, GPIO_PIN_RESET); // 清除硬件标志
-        pt->cartoon.over_current = 0;                                        // 清除过流动画图标
+#if (USING_TEST_DEBUG)
+        if (!start_flag)
+            TEST_DEBUG_D("@error: trigger overcurrent protection!\r\n");
+#endif
+        start_flag = true;
     }
 }
 
@@ -371,11 +391,11 @@ void test_poll(void)
 }
 
 #define CSV_FILE_NAME "data.csv"
-#define CSV_TABLE_HEADER "sn,timestamp(s),voltage(v),currnet(mA),v_offset(%),c_offset(%),notes\
-    \n0,1668839363,18.0,120,0.05,0.05,sample                        \n"
-#define STR_FORMAT "%d,%ld,%f,%f,%f,%f,real\n" // 序号、时间戳、电压、电流、电压偏差率、电流偏差率
+#define CSV_TABLE_HEADER "sn,timestamp(s),voltage1(v),voltage2(v),currnet(mA),v_offset(%),c_offset(%),notes\
+    \n0,1668839363,41.0,42.0,120,0.05,0.05,sample                        \n"
+#define STR_FORMAT "%d,%ld,%f,%f,%f,%f,%f,real\n" // 序号、时间戳、电压1、电压2、电流、电压偏差率、电流偏差率
 #define CSV_FILE_MAX_SIZE 48 * 1024U
-#define CSV_BUF_SIZE 64
+#define CSV_BUF_SIZE 72
 /*单个文件数据开始回滚最大记录条数*/
 #define CSV_MAX_RECORD ((CSV_FILE_MAX_SIZE - sizeof(CSV_TABLE_HEADER)) / CSV_BUF_SIZE)
 /**
@@ -467,14 +487,14 @@ static void test_data_save_to_csv(test_t *pt, test_data_t *pdata)
         gettimeofday(&tv, &tz); // 获取时间
         rt_memset(write_buf, 0x00, sizeof(write_buf));
         /*预测buf尺寸：https://c-faq-chn.sourceforge.net/ccfaq/node210.html*/
-        int str_size = rt_snprintf(NULL, 0, STR_FORMAT, count, tv.tv_sec, pdata->voltage, pdata->current,
-                                   pdata->voltage_offset, pdata->current_offset);
+        int str_size = rt_snprintf(NULL, 0, STR_FORMAT, count, tv.tv_sec, pdata->voltage1, pdata->voltage1,
+                                   pdata->current, pdata->voltage_offset, pdata->current_offset);
         // char write_buf[str_size];
         // char *write_buf = rt_malloc(str_size);
         // if (write_buf)
         {
-            rt_sprintf(write_buf, STR_FORMAT, count, tv.tv_sec, pdata->voltage, pdata->current,
-                       pdata->voltage_offset, pdata->current_offset);
+            rt_sprintf(write_buf, STR_FORMAT, count, tv.tv_sec, pdata->voltage1, pdata->voltage1,
+                       pdata->current, pdata->voltage_offset, pdata->current_offset);
             write(fd, write_buf, sizeof(write_buf));
             close(fd);
             // rt_free(write_buf);
@@ -598,63 +618,65 @@ static adc_cali_factor current_factor[] = {
 static adc_cali_factor voltage_factor[][7U][2U] = {
     {
         {
-            {0.0198f, -40.495f},
-            {0.0193f, -38.805f},
+            {0.0552f, -116.6135f},
+            {0.0443f, -93.6166f},
         },
         {
-            {0.0203f, -42.354f},
-            {0.0197f, -41.208f},
+            {0.0429f, -90.0809f},
+            {0.0399f, -83.8172f},
         },
         {
-            {0.0205f, -43.077f},
-            {0.02f, -41.646f},
+            {0.0402f, -83.7132f},
+            {0.0385f, -79.6195f},
         },
         {
-            {0.0204f, -42.599f},
-            {0.0203f, -42.208f},
+            {0.0399f, -83.7023f},
+            {0.0396f, -82.3834f},
         },
         {
-            {0.0205f, -42.702f},
-            {0.02f, -41.535f},
+            {0.0423f, -89.4118f},
+            {0.0452f, -96.1154f},
         },
         {
-            {0.0205f, -42.245f},
-            {0.02f, -41.101f},
+            {0.0397f, -81.0580f},
+            {0.0410f, -82.6631f},
         },
         {
-            {0.021f, -43.522f},
-            {0.0203f, -41.796f},
+            {0.0436f, -88.4671f},
+            {0.0527f, -105.6216f},
         },
     }, // DC
     {
+#define DC_50_AC_RATIO (31.0f / 23.0f)
         {
-            {0.06139f, -129.15f},
-            {0.0602f, -121.00f},
+            {0.1432f, -293.28f},
+            {0.1289f, -263.89f},
         },
         {
-            {0.0658f, -133.17f},
-            {0.0619f, -124.65f},
+            {0.1267f, -259.40f},
+            {0.1167f, -239.09f},
         },
         {
-            {0.0663f, -134.19f},
-            {0.0622f, -124.90f},
+            {0.12087f, -247.55f},
+            {0.1232f, -252.37f},
         },
         {
-            {0.0654f, -132.48f},
-            {0.0623f, -125.24f},
+            {0.12047f, -246.72f},
+            {0.12341f, -252.74f},
         },
         {
-            {0.0657f, -132.97f},
-            {0.0628f, -126.47f},
+            {0.11873f, -243.16f},
+            {0.12421f, -254.39f},
         },
         {
-            {0.0665f, -134.58f},
-            {0.0624f, -125.11f},
+            {0.12253f, -250.95f},
+            {0.13376f, -273.94f},
         },
         {
-            {0.0673f, -136.09f},
-            {0.0638f, -127.83f},
+            {0.13043f, -267.12f},
+            {0.15167f, -310.61f},
         },
+#undef DC_50_AC_RATIO
     }, //@AC50Hz
     {
         {
@@ -812,7 +834,8 @@ void test_data_handle(test_t *pt)
 #endif
 
     test_data_t data = {
-        .voltage = calc_result[1],
+        .voltage1 = calc_result[1],
+        .voltage2 = calc_result[2],
         .current = calc_result[0],
         .voltage_offset = Get_Error((calc_result[1] + calc_result[2]) / 2.0F, calc_result[1]),
         .current_offset = Get_Error((calc_result[0] + calc_result[0]) / 2.0F, calc_result[0]),

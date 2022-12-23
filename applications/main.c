@@ -941,10 +941,11 @@ static void swap_16bit_data_to_buf(uint16_t *buf_16,
 #define __SWP16(A) ((((uint16_t)(A)&0xff00) >> 8) | \
                     (((uint16_t)(A)&0x00ff) << 8))
 
-    if (buf_16 == NULL || buf_8 == NULL || !size)
+    if (NULL == buf_16 || NULL == buf_8 ||
+        !size || (size % sizeof(uint16_t)))
         return;
 
-    for (uint8_t i = 0; i < size; ++i)
+    for (uint8_t i = 0; i < size / sizeof(uint16_t); ++i)
         buf_16[i] = __SWP16(buf_16[i]);
 
     memcpy(buf_8, buf_16, size);
@@ -984,7 +985,7 @@ static void swap_16bit_data_to_buf(uint16_t *buf_16,
 void report_thread_entry(void *parameter)
 {
 #define VAL_UINT16_T_NUM 22U
-#define VAL_FLOAT_NUM 39U
+#define VAL_FLOAT_NUM 42U
 #define BUF_SIE (VAL_UINT16_T_NUM * 2U + VAL_FLOAT_NUM * 4U)
     rt_thread_pools_t *p_rt_thread_pool = (rt_thread_pools_t *)parameter;
     pModbusHandle pd = Modbus_Object;
@@ -1354,7 +1355,7 @@ void at_fsm_thread_entry(void *parameter)
 static void see_sys_info(void)
 {
 #define CURRENT_HARDWARE_VERSION "1.0.0"
-#define CURRENT_SOFT_VERSION "1.2.6"
+#define CURRENT_SOFT_VERSION "1.2.25"
     rt_kprintf("@note:Current Hardware version: %s , software version: %s.\n",
                CURRENT_HARDWARE_VERSION, CURRENT_SOFT_VERSION);
 #undef CURRENT_HARDWARE_VERSION
