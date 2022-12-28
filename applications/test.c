@@ -41,7 +41,7 @@ test_t test_object = {
         .start = 0x01,
         .end = 0x07,
     },
-    //    .cur_exe_count = 0,
+    //    .info.cur_exe_count = 0,
     .data = {
         .size = sizeof(test_data) / sizeof(test_data[0]),
         .p = &test_data[0],
@@ -152,13 +152,20 @@ static enum test_stage get_cur_test_state(ptest_t pt)
                     .start = 1U,
                     .end = TEST_MAX_NUM,
                 };
-            pt->pre->cur_group = temp_group; // 传递一个临时参数
+            pt->pre->cur_group = temp_group;            // 传递一个临时参数
+            pt->pre->info.order = 0;                    // 正序
+            pt->pre->info.end_site = TEST_MAX_NUM - 1U; // 避免使用了手动参数
             return test_auto;
         }
-        else
+        else // 手动模式：存在一个组选择问题
         {
             pt->pre->cur_group = pt->cur_group;
-            pt->pre->cur_exe_count = pt->cur_group.start - 1U; // 手动模式：存在一个组选择问题
+            pt->pre->info.cur_exe_count = (pt->cur_group.start - 1U) & 0x07U;
+            pt->pre->info.order = (pt->cur_group.start <= pt->cur_group.end) ? 0U : 1U; // 正序:逆序
+            pt->pre->info.end_site = (pt->cur_group.end - 1U) & 0x07U;
+#if (USING_TEST_DEBUG)
+            TEST_DEBUG_R("cur_group.end: %d, info.val: %#x.\r\n", pt->cur_group.end, pt->pre->info.val);
+#endif
             return test_manual;
         }
     }
@@ -377,6 +384,7 @@ void test_poll(void)
 
     // test_over_current_check();           // 随时检测是否发生过流：应该在测试过程中检测
     pt->cur_stage = get_cur_test_state(pt);
+    // pt->pre->flag.order = __GET_FLAG(pt->flag, test_order_flag); // 传递一些必要信息
     for (ptest_event_t p = test_event_group;
          p < test_event_group + TEST_EVENT_SIZE(); ++p)
     {
@@ -593,11 +601,11 @@ void test_data_save(test_t *pt, test_data_t *pdata)
         NULL == pt->pre || NULL == pdata)
         return;
 
-    if (pt->data.p && pt->pre->cur_exe_count < pt->data.size)
+    if (pt->data.p && pt->pre->info.cur_exe_count < pt->data.size)
     {
-        pt->data.p[pt->pre->cur_exe_count] = *pdata;
+        pt->data.p[pt->pre->info.cur_exe_count] = *pdata;
         /*数据写回输入寄存器*/
-        pd->Mod_Operatex(pd, InputRegister, Write, pt->pre->cur_exe_count * sizeof(test_data_t),
+        pd->Mod_Operatex(pd, InputRegister, Write, pt->pre->info.cur_exe_count * sizeof(test_data_t),
                          (uint8_t *)pdata, sizeof(test_data_t));
         /*数据存到文件*/
         test_data_save_to_csv(pt, pdata);
@@ -801,8 +809,8 @@ void test_data_handle(test_t *pt)
             case 1:
             case 2:
             {
-                p = voltage_factor[pt->pre->cur_power][pt->pre->cur_exe_count][i - 1U].p;
-                q = voltage_factor[pt->pre->cur_power][pt->pre->cur_exe_count][i - 1U].q;
+                p = voltage_factor[pt->pre->cur_power][pt->pre->info.cur_exe_count][i - 1U].p;
+                q = voltage_factor[pt->pre->cur_power][pt->pre->info.cur_exe_count][i - 1U].q;
             }
             break;
             }
@@ -830,7 +838,7 @@ void test_data_handle(test_t *pt)
 
 #if (USING_TEST_DEBUG)
     TEST_DEBUG_R("\r\nsite\ti0\tv0\tv1\r\n----\t----\t----\t----\t\r\n%d\t%.2f\t%.2f\t%.2f\r\n",
-                 pt->pre->cur_exe_count, calc_result[0], calc_result[1], calc_result[2]);
+                 pt->pre->info.cur_exe_count, calc_result[0], calc_result[1], calc_result[2]);
 #endif
 
     test_data_t data = {
@@ -841,11 +849,12 @@ void test_data_handle(test_t *pt)
         .current_offset = Get_Error((calc_result[0] + calc_result[0]) / 2.0F, calc_result[0]),
     };
 
-    if (pt->pre->cur_exe_count) // 从第二段开始计算真正电流偏差率
+    uint32_t last_site = !pt->pre->info.order ? (pt->pre->info.cur_exe_count - 1U)  // 正序
+                                              : (pt->pre->info.cur_exe_count + 1U); // 逆序
+
+    if (last_site < TEST_MAX_NUM) // 电流偏差计算去掉首尾2组
     {
-        data.current_offset = Get_Error((pt->data.p[pt->pre->cur_exe_count - 1U].current +
-                                         calc_result[0]) /
-                                            2.0F,
+        data.current_offset = Get_Error((pt->data.p[last_site].current + calc_result[0]) / 2.0F,
                                         calc_result[0]);
     }
 
@@ -890,7 +899,7 @@ static void test_at_standby(ptest_t pt)
     /*波形参数写入参数池*/
     test_set_run_wave(pt, 0);
     /*清除当前进度*/
-    pt->pre->cur_exe_count = 0;
+    pt->pre->info.cur_exe_count = 0;
     /*意外错误或者测试完毕，关闭所有继电器（包括电源）*/
     memset(pt->pre->coil.p, 0x00, pt->pre->coil.size);
     /*复位开始信号和首次信号*/
@@ -966,24 +975,12 @@ static void test_at_auto(ptest_t pt)
     if (NULL == pt->pre || NULL == pt->pre->coil.p)
         return;
 
-    // for (uint8_t i = low_freq; i < max_freq; ++i)
-    // {
-    //     pt->user_freq = (enum wave_freq)i;
-
-    //     pt->ac.wave_param.frequency = pt->freq_table[i];
-    //     /*波形参数写入参数池*/
-    //     //        write_wave_param(pt);
-    //     pt->pre->cur_power = test_select_power(pt); // 获取目标电源类型：自动获取
-    //     relay_poll(pt->pre, pos_sque_action);       // 设置继电器策略：正向动作
-    // }
-
     if (pt->auto_count < max_freq)
     {
         /*波形参数写入参数池*/
         test_set_run_wave(pt, test_select_output_freq(pt, pt->auto_count));
         pt->pre->cur_power = test_select_power(pt, (enum wave_freq)pt->auto_count); // 获取目标电源类型：手动模式时需要
         relay_poll(pt->pre, pos_sque_action);                                       // 设置继电器策略：正向动作
-        // auto_count++;
     }
     //     else
     //     {

@@ -34,7 +34,8 @@ relay_handle relay_object = {
     .next_time = RELAY_ACTION_NEXT_TIMES,
     .relay_delay = (void (*)(unsigned int))rt_thread_mdelay,
     .relay_callback = relay_callback,
-    .cur_exe_count = 0,
+    // .cur_exe_count = 0,
+    .info.cur_exe_count = 0,
 };
 
 /**
@@ -82,7 +83,7 @@ relay_error_code relay_callback(pre_handle pre)
     relay_error_code result = re_ok;
     ptest_t pt = &test_object;
     rt_err_t rt_result;
-    uint8_t cur_site = pre->cur_exe_count;
+    uint16_t cur_site = pre->info.cur_exe_count;
     bool finsh_flag = false;
 
     if (pt->data.p == NULL || pre == NULL)
@@ -140,7 +141,7 @@ relay_error_code relay_callback(pre_handle pre)
         // goto __exit;
     }
 
-    if (cur_site == (pre->cur_group.end - 1U))
+    if (cur_site == pre->info.end_site)
     {
         if (__GET_FLAG(pt->flag, test_mode)) // 手动模式：单次结束
         {
@@ -153,7 +154,7 @@ relay_error_code relay_callback(pre_handle pre)
                 .end = TEST_MAX_NUM,
             };
             pre->cur_group = temp_group; // 初始化下一次组开启顺序
-            if (++pt->auto_count > max_freq)
+            if (++pt->auto_count >= max_freq)
             {
                 pt->auto_count = 0;
                 finsh_flag = true;
@@ -551,19 +552,19 @@ static relay_error_code set_coil_action_exe(pre_handle pre,
         goto __exit;
     }
 
-    result = relay_set_cs_signal(pre->cur_exe_count); // 保证cs信号仅仅单次选通
+    result = relay_set_cs_signal(pre->info.cur_exe_count); // 保证cs信号仅仅单次选通
     if (result != re_ok)
     {
 #if (USING_RELAY_DEBUG)
-        RELAY_DEBUG_D("@error: failed to operate cs signal, cs group:[%d].\n", pre->cur_exe_count);
+        RELAY_DEBUG_D("@error: failed to operate cs signal, cs group:[%d].\n", pre->info.cur_exe_count);
 #endif
         goto __exit;
     }
 
     /*根据电源类型打开目标电源*/
     set_relay_target_power(pre, pre->cur_power, relay_open);
-    result = operate_relay_coil_group(pre, cur_matrix.tactics.tactics[0][pre->cur_exe_count],
-                                      cur_matrix.tactics.tactics[1][pre->cur_exe_count], relay_open);
+    result = operate_relay_coil_group(pre, cur_matrix.tactics.tactics[0][pre->info.cur_exe_count],
+                                      cur_matrix.tactics.tactics[1][pre->info.cur_exe_count], relay_open);
     if (result != re_ok)
         goto __exit;
 
@@ -578,17 +579,9 @@ static relay_error_code set_coil_action_exe(pre_handle pre,
 
 #if (USING_RELAY_DEBUG)
     RELAY_DEBUG_R("\r\ncs\tstart\tend\tk1x\tk2x\r\n---\t-----\t---\t---\t---\r\n%d\t%d\t%d\t%d\t%d\r\n",
-                  pre->cur_exe_count, pre->cur_group.start - 1U, pre->cur_group.end - 1U,
-                  cur_matrix.tactics.tactics[0][pre->cur_exe_count], cur_matrix.tactics.tactics[1][pre->cur_exe_count]);
+                  pre->info.cur_exe_count, pre->cur_group.start - 1U, pre->info.end_site,
+                  cur_matrix.tactics.tactics[0][pre->info.cur_exe_count], cur_matrix.tactics.tactics[1][pre->info.cur_exe_count]);
 #endif
-    // if (pre->cur_power > dc_out && pre->cur_power < null_out)
-    // {
-    //     /*清除外部中断线挂起寄存器*/
-    //     __HAL_GPIO_EXTI_CLEAR_IT(ACV_ZERO_Pin);
-    //     extern rt_base_t pin_number;
-    //     /* 打开中断 */
-    //     rt_pin_irq_enable(pin_number, PIN_IRQ_ENABLE);
-    // }
 
     /*回调函数采集数据、计算偏差*/
     if (pre->relay_callback) /*回调函数中传入一些继电器策略*/
@@ -598,23 +591,34 @@ static relay_error_code set_coil_action_exe(pre_handle pre,
         }
 
     /*复位当前操作组*/
-    result = operate_relay_coil_group(pre, cur_matrix.tactics.tactics[0][pre->cur_exe_count],
-                                      cur_matrix.tactics.tactics[1][pre->cur_exe_count], relay_close);
+    result = operate_relay_coil_group(pre, cur_matrix.tactics.tactics[0][pre->info.cur_exe_count],
+                                      cur_matrix.tactics.tactics[1][pre->info.cur_exe_count], relay_close);
     if (result != re_ok)
         goto __exit;
 
-    if (++pre->cur_exe_count >= pre->cur_group.end)
+    // if (++pre->.info.cur_exe_count >= pre->cur_group.end)
+    // {
+    //     pre->.info.cur_exe_count = 0;
+    //     /*测试完毕后关闭电源*/
+    //     set_relay_target_power(pre, pre->cur_power, relay_close);
+    // }
+    /*根据执行顺序，得到有效结束条件*/
+    if (!pre->info.order)
     {
-        pre->cur_exe_count = 0;
-        /*测试完毕后关闭电源*/
-        set_relay_target_power(pre, pre->cur_power, relay_close);
+        if (++pre->info.cur_exe_count >= pre->cur_group.end)
+            goto __close_power;
+    }
+    else
+    {
+        if (--pre->info.cur_exe_count > pre->cur_group.start)
+            goto __close_power;
     }
 
     return result;
 
 __exit:
 
-    // pre->cur_exe_count = 0;
+    // pre->.info.cur_exe_count = 0;
     /*意外错误或者测试完毕，关闭所有继电器（包括电源）*/
     // for (uint8_t i = 0; i < ACTION_MAX_GROUP_NUM; ++i)
     // {
@@ -624,6 +628,11 @@ __exit:
 #if (USING_RELAY_DEBUG)
     RELAY_DEBUG_D("@error: exe 'set_coil_action_exe', an error occurred.\n");
 #endif
+
+__close_power:
+    /*测试完毕后关闭电源*/
+    set_relay_target_power(pre, pre->cur_power, relay_close);
+    pre->info.cur_exe_count = 0;
 
     return result;
 }

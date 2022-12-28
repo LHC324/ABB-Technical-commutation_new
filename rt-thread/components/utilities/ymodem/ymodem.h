@@ -21,32 +21,32 @@
 enum rym_code
 {
     RYM_CODE_NONE = 0x00,
-    RYM_CODE_SOH  = 0x01,
-    RYM_CODE_STX  = 0x02,
-    RYM_CODE_EOT  = 0x04,
-    RYM_CODE_ACK  = 0x06,
-    RYM_CODE_NAK  = 0x15,
-    RYM_CODE_CAN  = 0x18,
-    RYM_CODE_C    = 0x43,
+    RYM_CODE_SOH = 0x01,
+    RYM_CODE_STX = 0x02,
+    RYM_CODE_EOT = 0x04,
+    RYM_CODE_ACK = 0x06,
+    RYM_CODE_NAK = 0x15,
+    RYM_CODE_CAN = 0x18,
+    RYM_CODE_C = 0x43,
 
     /* RYM error code */
-    RYM_ERR_TMO   = 0x70, /* timeout on handshake */
-    RYM_ERR_CODE  = 0x71, /* wrong code, wrong SOH, STX etc */
-    RYM_ERR_SEQ   = 0x72, /* wrong sequence number */
-    RYM_ERR_CRC   = 0x73, /* wrong CRC checksum */
-    RYM_ERR_DSZ   = 0x74, /* not enough data received */
-    RYM_ERR_CAN   = 0x75, /* the transmission is aborted by user */
-    RYM_ERR_ACK   = 0x76, /* wrong answer, wrong ACK or C */
-    RYM_ERR_FILE  = 0x77, /* transmit file invalid */
+    RYM_ERR_TMO = 0x70,  /* timeout on handshake */
+    RYM_ERR_CODE = 0x71, /* wrong code, wrong SOH, STX etc */
+    RYM_ERR_SEQ = 0x72,  /* wrong sequence number */
+    RYM_ERR_CRC = 0x73,  /* wrong CRC checksum */
+    RYM_ERR_DSZ = 0x74,  /* not enough data received */
+    RYM_ERR_CAN = 0x75,  /* the transmission is aborted by user */
+    RYM_ERR_ACK = 0x76,  /* wrong answer, wrong ACK or C */
+    RYM_ERR_FILE = 0x77, /* transmit file invalid */
 };
 
 /* how many ticks wait for chars between packet. */
 #ifndef RYM_WAIT_CHR_TICK
-#define RYM_WAIT_CHR_TICK (RT_TICK_PER_SECOND * 3)
+#define RYM_WAIT_CHR_TICK (RT_TICK_PER_SECOND * 30)
 #endif
 /* how many ticks wait for between packet. */
 #ifndef RYM_WAIT_PKG_TICK
-#define RYM_WAIT_PKG_TICK (RT_TICK_PER_SECOND * 3)
+#define RYM_WAIT_PKG_TICK (RT_TICK_PER_SECOND * 30)
 #endif
 /* how many ticks between two handshake code. */
 #ifndef RYM_CHD_INTV_TICK
@@ -55,12 +55,12 @@ enum rym_code
 
 /* how many CAN be sent when user active end the session. */
 #ifndef RYM_END_SESSION_SEND_CAN_NUM
-#define RYM_END_SESSION_SEND_CAN_NUM  0x07
+#define RYM_END_SESSION_SEND_CAN_NUM 0x07
 #endif
 
 /* how many retries were made when the error occurred */
 #ifndef RYM_MAX_ERRORS
-#define RYM_MAX_ERRORS    ((rt_size_t)10)
+#define RYM_MAX_ERRORS ((rt_size_t)10)
 #endif
 
 enum rym_stage
@@ -89,7 +89,7 @@ struct rym_ctx;
  * transfer and the buf will be discarded. Any other return values will cause
  * the transfer continue.
  */
-typedef enum rym_code(*rym_callback)(struct rym_ctx *ctx, rt_uint8_t *buf, rt_size_t len);
+typedef enum rym_code (*rym_callback)(struct rym_ctx *ctx, rt_uint8_t *buf, rt_size_t len);
 
 /* Currently RYM only support one transfer session(ctx) for simplicity.
  *

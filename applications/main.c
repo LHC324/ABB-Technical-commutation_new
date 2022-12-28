@@ -1355,7 +1355,7 @@ void at_fsm_thread_entry(void *parameter)
 static void see_sys_info(void)
 {
 #define CURRENT_HARDWARE_VERSION "1.0.0"
-#define CURRENT_SOFT_VERSION "1.2.25"
+#define CURRENT_SOFT_VERSION "1.3.22"
     rt_kprintf("@note:Current Hardware version: %s , software version: %s.\n",
                CURRENT_HARDWARE_VERSION, CURRENT_SOFT_VERSION);
 #undef CURRENT_HARDWARE_VERSION
@@ -1368,7 +1368,7 @@ MSH_CMD_EXPORT(see_sys_info, View system information.);
  * @param  pd modbus协议站句柄
  * @retval None
  */
-static void re_console(void)
+void re_console(void)
 {
     rt_err_t ret = RT_EOK;
     pModbusHandle pd = Modbus_Object;

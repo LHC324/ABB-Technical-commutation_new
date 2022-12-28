@@ -16,7 +16,7 @@ extern "C"
 /*继电器动作最大组数*/
 #define ACTION_MAX_GROUP_NUM 7U
 /*继电器动作的下一次时间*/
-#define RELAY_ACTION_NEXT_TIMES 15U // 000
+#define RELAY_ACTION_NEXT_TIMES 5U // 000
     typedef enum
     {
         re_ok = 0,         /*无错误*/
@@ -68,7 +68,21 @@ extern "C"
     } relay_action_group;
     struct relay_handletypedef
     {
-        // unsigned int single_flag; // 标记一些参数单次设置
+// unsigned int single_flag; // 标记一些参数单次设置
+#pragma push
+#pragma anon_unions
+        union
+        {
+            struct
+            {
+                unsigned int order : 1;         /*继电器执行的顺序标志*/
+                unsigned int end_site : 3;      /*结束位置*/
+                unsigned int cur_exe_count : 3; /*系统当前执行次数*/
+                unsigned int reserve : 25;
+            };
+            unsigned int val;
+        } info;
+#pragma pop // https://www.cnblogs.com/linux-farmer/p/15250740.html
         relay_power_type cur_power;
         relay_action_group *pag;
         unsigned short action_group_size;
@@ -86,7 +100,7 @@ extern "C"
 
         // unsigned char cur_group; /*自定义时使用*/
         relay_group cur_group;
-        unsigned int cur_exe_count; // 系统当前执行次数
+        // unsigned int cur_exe_count; // 系统当前执行次数
 
         // void *pmodbus;
         void (*relay_delay)(unsigned int);

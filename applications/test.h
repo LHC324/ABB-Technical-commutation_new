@@ -34,8 +34,9 @@ extern "C"
         test_overcurrent_signal,   // 过流信号
         test_zero_crossing_signal, // 过零信号
         test_first_flag,           // 首次开始标志
-        test_mode,                 /*测试模式:bit0 0为自动，1为手动*/
-        test_at_flag,              /*at自由指令模式标志*/
+        test_mode,                 // 测试模式:bit0 0为自动，1为手动
+        test_at_flag,              // at自由指令模式标志
+        // test_order_flag,           // 测试组的顺序标志：0正序，1逆序
         test_max_flag,
     };
     enum test_stage
