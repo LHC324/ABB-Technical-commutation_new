@@ -279,7 +279,7 @@ static relay_error_code set_relay_target_power(pre_handle pre,
     set_relay_coil(pre, K1A_AC_50HZ, state) /*选择目标电流挡:默认在直流挡*/
         : power < null_out
         ? set_relay_coil(pre, K39_AC, state),
-    set_relay_coil(pre, K1A_AC_50HZ, state)
+    set_relay_coil(pre, K1A_AC_xHZ, state)
         : re_power_err;
 
     return result;

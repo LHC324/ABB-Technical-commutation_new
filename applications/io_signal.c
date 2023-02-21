@@ -133,7 +133,6 @@ void stop_adc_conv(void)
  */
 void set_timer_sampling_freq(float cur_freq)
 {
-#define TIMER_SAMPLING_RATIO 32.0F
 
     static uint32_t target_time = 0;
 
@@ -147,8 +146,6 @@ void set_timer_sampling_freq(float cur_freq)
 
     HAL_TIM_Base_Stop(&htim8);
     __HAL_TIM_SET_AUTORELOAD(&htim8, target_time);
-
-#undef TIMER_SAMPLING_RATIO
 }
 
 /**

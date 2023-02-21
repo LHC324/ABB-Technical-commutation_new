@@ -6,6 +6,12 @@
 #include "fcntl.h"
 #include "unistd.h"
 #include "minIni.h"
+// ARM DSP库使用介绍：https://www.cnblogs.com/helesheng/p/15671138.html
+//  #pragma diag_suppress 1 /*单文件屏蔽警告信息*/
+//  #include "arm_math.h"
+//  #include "arm_const_structs.h"
+#include "fft.h"
+// 采样误差介绍：https://zhuanlan.zhihu.com/p/22474986
 
 #ifdef DBG_TAG
 #undef DBG_TAG
@@ -434,6 +440,7 @@ static int test_check_csv(test_t *pt, struct stat *p_file_info)
     return ret;
 }
 
+static void test_write_back_cur_file_size(void);
 /**
  * @brief	测试系统数据存储到csv文件
  * @details
@@ -452,8 +459,9 @@ static void test_data_save_to_csv(test_t *pt, test_data_t *pdata)
     if (NULL == pt || NULL == pdata)
         return;
 
-    fd = open(CSV_FILE_NAME, O_WRONLY | O_APPEND); // 数据以追加方式写入
-    if (test_check_csv(pt, &file_info) != RT_EOK)  // 检查目标文件是否存在
+    // fd = open(CSV_FILE_NAME, O_WRONLY | O_APPEND); // 数据以追加方式写入
+    fd = open(CSV_FILE_NAME, O_WRONLY);           // 不需要追加，以定位方式写入文件
+    if (test_check_csv(pt, &file_info) != RT_EOK) // 检查目标文件是否存在
         return;
 
     if (++pt->file.csv_line_count > CSV_MAX_RECORD) // 文件记录条数已达最大
@@ -466,7 +474,9 @@ static void test_data_save_to_csv(test_t *pt, test_data_t *pdata)
         if (file_info.st_size < CSV_FILE_MAX_SIZE &&
             pt->file.cur_size != file_info.st_size)
         {
-            pt->file.cur_size = sizeof(CSV_TABLE_HEADER);
+            // pt->file.cur_size = sizeof(CSV_TABLE_HEADER);
+            pt->file.cur_size = file_info.st_size;
+            test_write_back_cur_file_size(); // 复位文件尺寸到初始值，解决错误后永远无法正确写入问题
         }
     }
 
@@ -495,13 +505,13 @@ static void test_data_save_to_csv(test_t *pt, test_data_t *pdata)
         gettimeofday(&tv, &tz); // 获取时间
         rt_memset(write_buf, 0x00, sizeof(write_buf));
         /*预测buf尺寸：https://c-faq-chn.sourceforge.net/ccfaq/node210.html*/
-        int str_size = rt_snprintf(NULL, 0, STR_FORMAT, count, tv.tv_sec, pdata->voltage1, pdata->voltage1,
+        int str_size = rt_snprintf(NULL, 0, STR_FORMAT, count, tv.tv_sec, pdata->voltage1, pdata->voltage2,
                                    pdata->current, pdata->voltage_offset, pdata->current_offset);
         // char write_buf[str_size];
         // char *write_buf = rt_malloc(str_size);
         // if (write_buf)
         {
-            rt_sprintf(write_buf, STR_FORMAT, count, tv.tv_sec, pdata->voltage1, pdata->voltage1,
+            rt_sprintf(write_buf, STR_FORMAT, count, tv.tv_sec, pdata->voltage1, pdata->voltage2,
                        pdata->current, pdata->voltage_offset, pdata->current_offset);
             write(fd, write_buf, sizeof(write_buf));
             close(fd);
@@ -605,7 +615,7 @@ void test_data_save(test_t *pt, test_data_t *pdata)
     {
         pt->data.p[pt->pre->info.cur_exe_count] = *pdata;
         /*数据写回输入寄存器*/
-        pd->Mod_Operatex(pd, InputRegister, Write, pt->pre->info.cur_exe_count * sizeof(test_data_t),
+        pd->Mod_Operatex(pd, InputRegister, Write, pt->pre->info.cur_exe_count * sizeof(test_data_t) / 2U,
                          (uint8_t *)pdata, sizeof(test_data_t));
         /*数据存到文件*/
         test_data_save_to_csv(pt, pdata);
@@ -617,106 +627,186 @@ typedef struct
     float p, q;
 } adc_cali_factor;
 
-static adc_cali_factor current_factor[] = {
-    {0.0006f, -1.3183f}, // DC
-    {0.049f, -94.142f},  //@AC50Hz
-    {1.0803f, -2061.9f}, //@AC2KHz
+// static adc_cali_factor current_factor[] = {
+//     {0.0025f, -5.371f},   // DC
+//     {0.01376f, -1.2507f}, //@AC50Hz
+//     {0.4121f, -35.324f},  //@AC2KHz
+// };
+
+static adc_cali_factor current_factor[][7U][1U] = {
+    {
+        {
+            {0.0002f, -0.44606f},
+        },
+        {
+            {0.0002f, -0.4574f},
+        },
+        {
+            {0.0002f, -0.4574f},
+        },
+        {
+            {0.0002f, -0.4574f},
+        },
+        {
+            {0.0002f, -0.4574f},
+        },
+        {
+            {0.0002f, -0.4574f},
+        },
+        {
+            {0.0002f, -0.43378f},
+        },
+    }, // DC
+    {
+        {
+            {0.0136f, -1.3573f},
+        },
+        {
+            {0.0139f, -1.666f},
+        },
+        {
+            {0.0139f, -1.547f},
+        },
+        {
+            {0.0137f, -1.5421f},
+        },
+        {
+            {0.0143f, -1.9824f},
+        },
+        {
+            {0.0142f, -1.685f},
+        },
+        {
+            {0.0127f, -1.058f},
+        },
+    }, //@AC50Hz
+    {
+        {
+            {0.404f, -33.763f},
+        },
+        {
+            {0.4053f, -32.556f},
+        },
+        {
+            {0.4156f, -40.563f},
+        },
+        {
+            {0.4152f, -37.721f},
+        },
+        {
+            {0.4142f, -37.398f},
+        },
+        {
+            {0.4145f, -34.049f},
+        },
+        {
+            {0.4158f, -31.149f}, //-25.119
+        },
+    }, //@AC2KHz
 };
 
 static adc_cali_factor voltage_factor[][7U][2U] = {
     {
         {
-            {0.0552f, -116.6135f},
-            {0.0443f, -93.6166f},
+            {0.0124f, -18.657f},
+            {0.0098f, -12.704f},
         },
         {
-            {0.0429f, -90.0809f},
-            {0.0399f, -83.8172f},
+            {0.0319f, -74.969f},
+            {0.0288f, -67.003f},
         },
         {
-            {0.0402f, -83.7132f},
-            {0.0385f, -79.6195f},
+            {0.0245f, -57.293f},
+            {0.0228f, -52.873f},
         },
         {
-            {0.0399f, -83.7023f},
-            {0.0396f, -82.3834f},
+            {0.0223f, -51.397f},
+            {0.0218f, -49.571f},
         },
         {
-            {0.0423f, -89.4118f},
-            {0.0452f, -96.1154f},
+            {0.0234f, -54.862f},
+            {0.0227f, -52.327f},
         },
         {
-            {0.0397f, -81.0580f},
-            {0.0410f, -82.6631f},
+            {0.0235f, -53.357f},
+            {0.0241f, -53.702f},
         },
         {
-            {0.0436f, -88.4671f},
-            {0.0527f, -105.6216f},
+            {0.0322f, -74.340f},
+            {0.0361f, -81.169f},
         },
     }, // DC
     {
 #define DC_50_AC_RATIO (31.0f / 23.0f)
         {
-            {0.1432f, -293.28f},
-            {0.1289f, -263.89f},
+            {0.0221f, -0.5352f},
+            {0.0167f, -1.1292f},
         },
         {
-            {0.1267f, -259.40f},
-            {0.1167f, -239.09f},
+            {0.0159f, -2.2971f},
+            {0.0147f, -2.9823f},
         },
         {
-            {0.12087f, -247.55f},
-            {0.1232f, -252.37f},
+            {0.0149f, -3.7021f},
+            {0.0142f, -4.0648f},
         },
         {
-            {0.12047f, -246.72f},
-            {0.12341f, -252.74f},
+            {0.0148f, -4.6062f},
+            {0.0145f, -4.4559f},
         },
         {
-            {0.11873f, -243.16f},
-            {0.12421f, -254.39f},
+            {0.0147f, -4.3555f},
+            {0.0145f, -3.8024f},
         },
         {
-            {0.12253f, -250.95f},
-            {0.13376f, -273.94f},
+            {0.0154f, -3.1751f},
+            {0.0156f, -2.0809f},
         },
         {
-            {0.13043f, -267.12f},
-            {0.15167f, -310.61f},
+            {0.0181f, -1.4105f},
+            {0.0226f, -0.5679f},
         },
 #undef DC_50_AC_RATIO
     }, //@AC50Hz
     {
         {
-            {0.0389f, -73.371f},
-            {0.039f, -73.552f},
+            {0.0235f, -0.2484f},
+            {0.0168f, -0.2446f},
         },
         {
-            {0.0389f, -73.371f},
-            {0.039f, -73.552f},
+            {0.0143f, -0.3866f},
+            {0.0126f, -0.5056f},
         },
         {
-            {0.0389f, -73.371f},
-            {0.039f, -73.552f},
+            {0.0127f, -0.9831f},
+            {0.012f, -1.0785f},
         },
         {
-            {0.0389f, -73.371f},
-            {0.039f, -73.552f},
+            {0.0119f, -1.1084f},
+            {0.0118f, -0.9994f},
         },
         {
-            {0.0389f, -73.371f},
-            {0.039f, -73.552f},
+            {0.012f, -1.0756f},
+            {0.0123f, -0.9249f},
         },
         {
-            {0.0389f, -73.371f},
-            {0.039f, -73.552f},
+            {0.0129f, -0.6398f},
+            {0.0141f, -0.418f},
         },
         {
-            {0.0389f, -73.371f},
-            {0.039f, -73.552f},
+            {0.0164f, -0.2259f},
+            {0.0205f, 0.0082f},
         },
     }, //@AC2KHz
 };
+
+#define USER_DATA_NUMS 128U
+#define FFT_SIZE USER_DATA_NUMS
+#define IFFT_FLAG 0     // fft转换方向
+#define DO_BIT_REVESE 1 // 位反转
+Complex_t fft_input[FFT_SIZE];
+Complex_t fft_output[FFT_SIZE];
+#define asdscv sizeof(fft_output)
 
 /**
  * @brief	测试系统数据处理
@@ -726,7 +816,6 @@ static adc_cali_factor voltage_factor[][7U][2U] = {
  */
 void test_data_handle(test_t *pt)
 {
-#define USER_DATA_NUMS 128U
     // float v0_sum = 0, v1_sum = 0, i0_sum = 0;
     // float ei0, ev0, ev1;
     float calc_result[] = {0, 0, 0}; // i0、v0、v1
@@ -783,18 +872,24 @@ void test_data_handle(test_t *pt)
             switch (pt->pre->cur_power)
             {
             case dc_out:
-                // sum_of_squares += voltage; // 实际测试：是否需要卡尔曼
+                // sum_of_squares += adc_buf[i][j]; // 实际测试：是否需要卡尔曼
                 sum_of_squares = kalmanFilter(&hkfp, adc_buf[i][j]);
                 break;
             case ac1_out:
             case ac2_out:
                 if (j > 63 && j < 192) // 取256中间的128个点
-                    sum_of_squares += powf(adc_buf[i][j], 2.0F);
+                {
+                    // sum_of_squares += powf(adc_buf[i][j], 2.0F);
+                    fft_input[j - 64].real = (float)adc_buf[i][j]; // 读入128点adc浮点数值到实部
+                    fft_input[j - 64].image = 0;                   // 虚部始终为0
+                }
                 break;
             default:
                 break;
             }
         }
+        Number_t *p_fft = (Number_t *)fft_output; // 节省内存开销，结构成员数组化
+        uint32_t fft_target_site = 0;             // fft后有效信号源位置
         if (i < sizeof(calc_result) / sizeof(calc_result[0]))
         {
             float p = 0, q = 0;
@@ -802,8 +897,8 @@ void test_data_handle(test_t *pt)
             {
             case 0:
             {
-                p = current_factor[pt->pre->cur_power].p;
-                q = current_factor[pt->pre->cur_power].q;
+                p = current_factor[pt->pre->cur_power][pt->pre->info.cur_exe_count][0].p;
+                q = current_factor[pt->pre->cur_power][pt->pre->info.cur_exe_count][0].q;
             }
             break;
             case 1:
@@ -818,13 +913,55 @@ void test_data_handle(test_t *pt)
             switch (pt->pre->cur_power)
             {
             case dc_out:
-                // calc_result[i] = sum_of_squares / (float)USER_DATA_NUMS;
-                calc_result[i] = sum_of_squares;
+                // calc_result[i] = (sum_of_squares / (float)USER_DATA_NUMS) * p + q;
+                // calc_result[i] = sum_of_squares;
                 calc_result[i] = sum_of_squares * p + q;
                 break;
             case ac1_out:
             case ac2_out:
-                sum_of_squares = sqrtf(sum_of_squares / (float)USER_DATA_NUMS);
+                /*傅立叶正变换, 把input的信号变为复数频谱*/
+                fft(fft_output, fft_input, FFT_SIZE);
+#if (USING_TEST_DEBUG)
+                // if (__GET_FLAG(pt->flag, test_developer_signal))
+                // {
+                //     TEST_DEBUG_R("\r\nfft_output:\r\n");
+                //     TEST_DEBUG_R("----\t----\t----\t----\t----\t----\t----\t----\r\n");
+                //     for (uint8_t k = 0; k < FFT_SIZE; ++k)
+                //     {
+                //         TEST_DEBUG_R("%.1f\t", p_fft[k]);
+                //         if (((k + 1U) % 8) == 0)
+                //             TEST_DEBUG_R("\r\n");
+                //     }
+                // }
+#endif
+                p_fft = (Number_t *)fft_input; // 节省内存开销，结构成员数组化
+                /*对复数频谱求模得到实数, 这些实数就是每个频率下的信号强度:存储到输入结构的实部*/
+                length(p_fft, fft_output, FFT_SIZE);
+                for (uint8_t k = 0; k < FFT_SIZE / 2U; ++k) // fft对称性
+                {
+                    if (k)
+                        p_fft[k] = 2.0f * (p_fft[k] / FFT_SIZE); // 交流信号幅值是2倍的（A/N）
+                    else
+                        p_fft[k] /= FFT_SIZE; // 直流信号幅值是（1/N)倍
+                }
+#if (USING_TEST_DEBUG)
+                if (__GET_FLAG(pt->flag, test_developer_signal))
+                {
+                    TEST_DEBUG_R("\r\nfft_value:\r\n");
+                    TEST_DEBUG_R("----\t----\t----\t----\t----\t----\t----\t----\r\n");
+                    for (uint8_t k = 0; k < FFT_SIZE / 2U; ++k) // fft对称性
+                    {
+                        TEST_DEBUG_R("%.1f\t", p_fft[k]);
+                        if (((k + 1U) % 8) == 0)
+                            TEST_DEBUG_R("\r\n");
+                    }
+                }
+#endif
+                fft_target_site = FFT_SIZE / (uint32_t)TIMER_SAMPLING_RATIO;
+                if (fft_target_site < FFT_SIZE)
+                    sum_of_squares = p_fft[fft_target_site];
+
+                // sum_of_squares = sqrtf(sum_of_squares / (float)USER_DATA_NUMS);
                 calc_result[i] = sum_of_squares * p + q;
                 break;
             default:
@@ -1194,8 +1331,8 @@ static void set_flags(int argc, char **argv)
     if (flag != test_at_flag)
         return;
 
-    if ((pt->at_state == at_cli) && val ||
-        (pt->at_state != at_cli) && (pt->at_state != at_standy))
+    if (((pt->at_state == at_cli) && val) ||
+        ((pt->at_state != at_cli) && (pt->at_state != at_standy)))
     {
         TEST_DEBUG_R("@note: The wifi module is busy or the flag has been set.\n");
         return;

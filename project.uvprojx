@@ -335,10 +335,10 @@
             <v6WtE>0</v6WtE>
             <v6Rtti>0</v6Rtti>
             <VariousControls>
-              <MiscControls></MiscControls>
+              <MiscControls>--diag_suppress=1</MiscControls>
               <Define>__STDC_LIMIT_MACROS, LFS_CONFIG=lfs_config.h, STM32F103xE, USE_HAL_DRIVER, RT_USING_LIBC, __CLK_TCK=RT_TICK_PER_SECOND, __RTTHREAD__, RT_USING_ARM_LIBC</Define>
               <Undefine></Undefine>
-              <IncludePath>board;rt-thread\components\drivers\include;rt-thread\libcpu\arm\common;rt-thread\components\finsh;packages\libcsv-latest;rt-thread\components\dfs\include;rt-thread\components\drivers\include;libraries\STM32F1xx_HAL\CMSIS\Device\ST\STM32F1xx\Include;applications\lhc_dwin\Inc;packages\CmBacktrace-v1.4.1;packages\thread_pool-latest;rt-thread\components\libc\compilers\common\extension;libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Inc;libraries\HAL_Drivers\config;rt-thread\components\net\at\include;rt-thread\components\libc\posix\delay;board\CubeMX_Config\Core\Inc;packages\littlefs-latest;applications;packages\minIni-latest\dev;libraries\HAL_Drivers\CMSIS\Include;libraries\HAL_Drivers\drv_flash;rt-thread\components\drivers\include;rt-thread\components\libc\compilers\common\extension\fcntl\octal;rt-thread\components\drivers\include;rt-thread\components\drivers\include;rt-thread\components\libc\posix\ipc;rt-thread\components\libc\posix\io\stdio;.;rt-thread\components\libc\posix\pthreads;rt-thread\components\drivers\include;rt-thread\components\fal\inc;rt-thread\include;packages\ota_downloader-latest;rt-thread\components\drivers\hwcrypto;rt-thread\components\libc\compilers\common\include;rt-thread\libcpu\arm\cortex-m3;rt-thread\components\utilities\ymodem;applications;libraries\HAL_Drivers;packages\event_recorder-latest;applications\lhc_modbus\Inc;rt-thread\components\libc\posix\io\poll;packages\FlashDB-v1.1.2\inc</IncludePath>
+              <IncludePath>board;rt-thread\components\drivers\include;rt-thread\libcpu\arm\common;rt-thread\components\finsh;packages\libcsv-latest;rt-thread\components\dfs\include;rt-thread\components\drivers\include;libraries\STM32F1xx_HAL\CMSIS\Device\ST\STM32F1xx\Include;applications\lhc_dwin\Inc;packages\CmBacktrace-v1.4.1;packages\thread_pool-latest;rt-thread\components\libc\compilers\common\extension;libraries\STM32F1xx_HAL\STM32F1xx_HAL_Driver\Inc;libraries\HAL_Drivers\config;rt-thread\components\net\at\include;rt-thread\components\libc\posix\delay;board\CubeMX_Config\Core\Inc;packages\littlefs-latest;applications;packages\minIni-latest\dev;libraries\HAL_Drivers\CMSIS\Include;libraries\HAL_Drivers\drv_flash;rt-thread\components\drivers\include;rt-thread\components\libc\compilers\common\extension\fcntl\octal;rt-thread\components\drivers\include;rt-thread\components\drivers\include;rt-thread\components\libc\posix\ipc;rt-thread\components\libc\posix\io\stdio;.;rt-thread\components\libc\posix\pthreads;rt-thread\components\drivers\include;rt-thread\components\fal\inc;rt-thread\include;packages\ota_downloader-latest;rt-thread\components\drivers\hwcrypto;rt-thread\components\libc\compilers\common\include;rt-thread\libcpu\arm\cortex-m3;rt-thread\components\utilities\ymodem;applications;libraries\HAL_Drivers;packages\event_recorder-latest;applications\lhc_modbus\Inc;rt-thread\components\libc\posix\io\poll;packages\FlashDB-v1.1.2\inc;.\applications\z-fft\Inc</IncludePath>
             </VariousControls>
           </Cads>
           <Aads>
@@ -441,6 +441,11 @@
               <FileName>test.c</FileName>
               <FileType>1</FileType>
               <FilePath>applications\test.c</FilePath>
+            </File>
+            <File>
+              <FileName>fft.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\applications\z-fft\Src\fft.c</FilePath>
             </File>
           </Files>
         </Group>

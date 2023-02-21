@@ -1,123 +1,120 @@
-# BSP README 模板
+# 均压测试仪
 
 ## 简介
 
-本文档为 xxx 开发板的 BSP (板级支持包) 说明。
+换流阀均压测试装置是一种智能型分段式晶闸管电气特性测试装置，本装置采用低压变频信号作为换流阀晶闸管及其外部附属元器件交直流特性测试的信号源，利用不同频率信号施加在待测晶闸管及其相关外部电路上，以检测其综合电路对不同频率的响应特性，从而检测出电路对工频及其不同谐波的响应特性，及时发现电路中性能异常的元器件，达到高效快速检修的目的。
 
-主要内容如下：
+<img src="G:\STM32_Workers\STM32F1\ABB Technical commutation_new\document\均压测试仪.png" style="zoom:30%;" />
 
-- 开发板资源介绍
-- BSP 快速上手
-- 进阶使用方法
+## 软件
 
-通过阅读快速上手章节开发者可以快速地上手该 BSP，将 RT-Thread 运行在开发板上。在进阶使用指南章节，将会介绍更多高级功能，帮助开发者利用 RT-Thread 驱动更多板载资源。
+- 设备工作前请确保：
 
-## 开发板介绍
+  - 若使用了arm dsp库，则keil编译屏蔽部分信息：
 
-【此处简单介绍一下开发板】
+    ![](G:\STM32_Workers\STM32F1\ABB Technical commutation_new\document\keil警告信息控制.jpg)
 
-开发板外观如下图所示：
+    
 
-![board](figures/board.png)
+  - printf函数用法：
 
-该开发板常用 **板载资源** 如下：
+    ![](G:\STM32_Workers\STM32F1\ABB Technical commutation_new\document\printf精度和宽度变量控制方法.jpg)
 
-- MCU：STM32xxx，主频 xxxMHz，xxxKB FLASH ，xxxKB RAM
-- 外部 RAM：型号，xMB
-- 外部 FLASH：型号，xMB
-- 常用外设
-  - LED：x个，DS0（红色，PB1），DS1（绿色，PB0）
-  - 按键：x个，K0（兼具唤醒功能，PA0），K1（PC13）
-- 常用接口：USB 转串口、SD 卡接口、以太网接口、LCD 接口等
-- 调试接口，标准 JTAG/SWD
+    
 
-开发板更多详细信息请参考【厂商名】 [xxx开发板介绍](https://xxx)。
+  - 文件系统已经初始化`config.ini`文件
 
-## 外设支持
+    ```css
+    [system info] #system information
+    name = Voltage equalizing tester
+    hardware vesion = 1.2.0
+    software = 1.0.0
+    os = rt-thread
+    os vesion = 5.0.0
+    
+    ;[contrast] #System result comparison criteria
+    
+    
+    ;[group] #Working Group
+    
+    
+    [run] #System runtime parameters
+    flag = 0 				;System flag
+    work mode = 0			;0:auto,1:Manual
+    freq_mode = 0			;0:low,1:medium,2:high
+    voltage offset = 5.0
+    current offset = 5.0
+    start = 1
+    end = 7
+    record counts = 0		;Record times
+    file_size = 155
+    
+    [ad9833] #dds working parameters
+    frequency = 1000 			;0-12500000
+    frequency register = 0 		;0/1
+    phase = 0 					;0-360
+    phase register = 0 			;0/1
+    range = 155 			    ;0-255
+    wave = 0 					;0:sine wave,1:square wave,2：Trigonometric wave
+    
+    [wifi]
+    work state = 1					;0:close,1:open
+    work mode = 2					;0:ap,1:sta,2:ap+sta
+    module state = 0 				;0:error,1:success
+    network state = 0				;0:off-line,1:on-line
+    ap name = LHC
+    ap password = 66666666
+    baud rate = 115200
+    data bit = 8
+    stop bit = 1
+    check bit = 0
+    ```
 
-本 BSP 目前对外设的支持情况如下：
+    
 
-| **板载外设**      | **支持情况** | **备注**                              |
-| :----------------- | :----------: | :------------------------------------- |
-| USB 转串口        |     支持     |                                       |
-| SPI Flash         |     支持     |                                       |
-| 以太网            |     支持     |                                       |
-| SD卡              |   暂不支持   |                                       |
-| CAN               |   暂不支持   |                                       |
-| **片上外设**      | **支持情况** | **备注**                              |
-| GPIO              |     支持     | PA0, PA1... PK15 ---> PIN: 0, 1...176 |
-| UART              |     支持     | UART1/x/x                             |
-| SPI               |     支持     | SPI1/x/x                              |
-| I2C               |     支持     | 软件 I2C                              |
-| SDIO              |   暂不支持   | 即将支持                              |
-| RTC               |   暂不支持   | 即将支持                              |
-| PWM               |   暂不支持   | 即将支持                              |
-| USB Device        |   暂不支持   | 即将支持                              |
-| USB Host          |   暂不支持   | 即将支持                              |
-| IWG               |   暂不支持   | 即将支持                              |
-| **扩展模块**      | **支持情况** | **备注**                              |
-|     xxx 模块      |   支持   |                                      |
+  - 确保文件系统已经创建`data.csv`文件
 
-## 使用说明
+    ```c
+    msh > creat_csv_data
+    ```
 
-使用说明分为如下两个章节：
+    
 
-- 快速上手
+  - rt-thread 修改ymodem协议适配网络传输：
 
-    本章节是为刚接触 RT-Thread 的新手准备的使用说明，遵循简单的步骤即可将 RT-Thread 操作系统运行在该开发板上，看到实验效果 。
+    <img src="G:\STM32_Workers\STM32F1\ABB Technical commutation_new\document\ymodem_issue1.jpg" style="zoom:70%;" />
 
-- 进阶使用
+    
 
-    本章节是为需要在 RT-Thread 操作系统上使用更多开发板资源的开发者准备的。通过使用 ENV 工具对 BSP 进行配置，可以开启更多板载资源，实现更多高级功能。
+  - ad9833模块的spi驱动时序：
+
+    <img src="G:\STM32_Workers\STM32F1\ABB Technical commutation_new\document\操作时系说明.jpg" style="zoom:80%;" />
+
+    
+
+  - adc同步采样数据：
+
+    ![](G:\STM32_Workers\STM32F1\ABB Technical commutation_new\document\交流电采样点.jpg)
+
+    
+
+  - adc同步采样波形：
+
+    <img src="G:\STM32_Workers\STM32F1\ABB Technical commutation_new\document\ADC2_50Hz.jpg" style="zoom:50%;" />
 
 
-### 快速上手
 
-本 BSP 为开发者提供 MDK4、MDK5 和 IAR 工程，并且支持 GCC 开发环境。下面以 MDK5 开发环境为例，介绍如何将系统运行起来。
+### 存在的问题：
 
-#### 硬件连接
+- 电路结构上每段间输出电压不均衡，最边上两段尤为突出。
+- 三种不同类型信号共用一套电路结构导致采样精度大打折扣。
+- 过流检测，硬件没有做出有效保护。
+- DC信号和50HzAC信号硬件结构上存在谐波干扰[放大器到MCU段]。
+- 部分WiFi参数的屏幕可配置暂时不完全。
 
-使用数据线连接开发板到 PC，打开电源开关。
+### 设备使用说明
 
-#### 编译下载
+具体使用，请参看：
 
-双击 project.uvprojx 文件，打开 MDK5 工程，编译并下载程序到开发板。
+`ABB Technical commutation_new\document\换流阀均压测试装置使用说明书.docx`
 
-> 工程默认配置使用 xxx 仿真器下载程序，在通过 xxx 连接开发板的基础上，点击下载按钮即可下载程序到开发板
-
-#### 运行结果
-
-下载程序成功之后，系统会自动运行，【这里写开发板运行起来之后的现象，如：LED 闪烁等】。
-
-连接开发板对应串口到 PC , 在终端工具里打开相应的串口（115200-8-1-N），复位设备后，可以看到 RT-Thread 的输出信息:
-
-```bash
- \ | /
-- RT -     Thread Operating System
- / | \     3.1.1 build Nov 19 2018
- 2006 - 2018 Copyright by rt-thread team
-msh >
-```
-### 进阶使用
-
-此 BSP 默认只开启了 GPIO 和 串口1 的功能，如果需使用 SD 卡、Flash 等更多高级功能，需要利用 ENV 工具对BSP 进行配置，步骤如下：
-
-1. 在 bsp 下打开 env 工具。
-
-2. 输入`menuconfig`命令配置工程，配置好之后保存退出。
-
-3. 输入`pkgs --update`命令更新软件包。
-
-4. 输入`scons --target=mdk4/mdk5/iar` 命令重新生成工程。
-
-本章节更多详细的介绍请参考 [STM32 系列 BSP 外设驱动使用教程](../docs/STM32系列BSP外设驱动使用教程.md)。
-
-## 注意事项
-
-- xxx
-
-## 联系人信息
-
-维护人:
-
--  [xxx](https://个人主页), 邮箱：<xxx@xxx.com>

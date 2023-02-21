@@ -1355,7 +1355,7 @@ void at_fsm_thread_entry(void *parameter)
 static void see_sys_info(void)
 {
 #define CURRENT_HARDWARE_VERSION "1.0.0"
-#define CURRENT_SOFT_VERSION "1.3.22"
+#define CURRENT_SOFT_VERSION "1.3.49"
     rt_kprintf("@note:Current Hardware version: %s , software version: %s.\n",
                CURRENT_HARDWARE_VERSION, CURRENT_SOFT_VERSION);
 #undef CURRENT_HARDWARE_VERSION

@@ -1001,8 +1001,8 @@ static void dwin_data_handle(pDwinHandle pd,
     {
     case DWIN_USER_DATA_CLEAN_ADDR: // 数据清除
     {
-        /*清空前台检测数据*/
-        if (pt->data.p)
+        /*清空前台检测数据(测量过程中不允许清除)*/
+        if (!__GET_FLAG(pt->flag, test_start_signal) && pt->data.p)
         {
             memset(pt->data.p, 0x00, pt->data.size * sizeof(test_data_t));
             /*复位上一次检测结果*/

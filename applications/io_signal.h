@@ -29,6 +29,8 @@ extern "C"
 #define ADC_SAMPLING_NUM 8U
 #define ADC_DMA_SIZE (ADC_DMA_CHANNEL * ADC_SAMPLING_NUM)
 #define ADC_FILTER_SHIFT 3U
+/*定时器采样倍率*/
+#define TIMER_SAMPLING_RATIO 32.0F
     typedef enum
     {
         DAC_OUT1 = 0x00,
